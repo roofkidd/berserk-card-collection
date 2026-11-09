@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Берсерк: Альбом Коллекционера</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #121110;
+            --bg-panel: rgba(26, 24, 22, 0.88);
+            --bg-slot: rgba(15, 14, 13, 0.75);
+            --border-color: rgba(168, 139, 98, 0.25);
+            --border-hover: rgba(201, 166, 107, 0.65);
+            --text-main: #eae6df;
+            --text-muted: #9e9689;
+            --accent: #c9a66b;
+            --accent-bright: #e5c384;
+            --input-bg: #181614;
+        }
+
+        .theme-light {
+            --bg-main: #f4f1ea;
+            --bg-panel: rgba(255, 253, 249, 0.92);
+            --bg-slot: rgba(242, 237, 228, 0.85);
+            --border-color: rgba(140, 118, 88, 0.25);
+            --border-hover: rgba(140, 105, 54, 0.7);
+            --text-main: #2c2623;
+            --text-muted: #6e655c;
+            --accent: #8c6936;
+            --accent-bright: #6e4f22;
+            --input-bg: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            background-image: radial-gradient(circle at 50% 0%, rgba(180, 140, 80, 0.08) 0%, transparent 70%);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, sans-serif;
+            transition: background-color 0.35s ease, color 0.35s ease;
+            overflow-x: hidden;
+        }
+
+        .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
+
+        .ui-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+        }
+
+        .ui-input {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .ui-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* 3D сцена для перелистывания листа альбома */
+        .binder-stage {
+            perspective: 2200px;
+        }
+
+        /* Направленная 3D-анимация перелистывания ВПЕРЕД (лист уходит влево) */
+        .flip-next-enter-active, .flip-next-leave-active,
+        .flip-prev-enter-active, .flip-prev-leave-active {
+            transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
+            transform-style: preserve-3d;
+        }
+        .flip-next-leave-to {
+            opacity: 0;
+            transform: translateX(-60px) rotateY(-22deg) scale(0.96);
+        }
+        .flip-next-enter-from {
+            opacity: 0;
+            transform: translateX(60px) rotateY(22deg) scale(0.96);
+        }
+
+        /* Перелистывание НАЗАД (лист уходит вправо) */
+        .flip-prev-leave-to {
+            opacity: 0;
+            transform: translateX(60px) rotateY(22deg) scale(0.96);
+        }
+        .flip-prev-enter-from {
+            opacity: 0;
+            transform: translateX(-60px) rotateY(-22deg) scale(0.96);
+        }
+
+        /* Слот карты в альбоме */
+        .card-slot {
+            background: var(--bg-slot);
+            border: 1px solid var(--border-color);
+            transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+        }
+        .card-slot:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.45);
+            transform: translateY(-3px);
+        }
+
+        /* Интерактивная 3D-карта в модалке */
+        .inspect-stage {
+            perspective: 1200px;
+        }
+        .inspect-card {
+            transform-style: preserve-3d;
+            will-change: transform;
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.75), 0 0 25px rgba(201, 166, 107, 0.15);
+        }
+
+        /* Реалистичный световой блик от курсора (Glare) */
+        .card-glare {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(
+                circle at var(--mx, 50%) var(--my, 50%),
+                rgba(255, 255, 255, 0.38) 0%,
+                rgba(255, 255, 255, 0.12) 25%,
+                transparent 65%
+            );
+            mix-blend-mode: overlay;
+            opacity: var(--glare-opacity, 0);
+            transition: opacity 0.2s ease;
+        }
+
+        /* Настоящий голографический шейдер фойлы, привязанный к координатам мыши */
+        .foil-shader {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background-image:
+                repeating-linear-gradient(
+                    115deg,
+                    rgba(255, 0, 128, 0.22) 0%,
+                    rgba(255, 204, 0, 0.22) 7%,
+                    rgba(0, 255, 180, 0.22) 14%,
+                    rgba(0, 140, 255, 0.22) 21%,
+                    rgba(180, 0, 255, 0.22) 28%,
+                    rgba(255, 0, 128, 0.22) 35%
+                ),
+                radial-gradient(
+                    circle at var(--mx, 50%) var(--my, 50%),
+                    rgba(255, 255, 255, 0.5) 0%,
+                    transparent 55%
+                );
+            background-size: 250% 250%, 100% 100%;
+            background-position: var(--bg-x, 50%) var(--bg-y, 50%), center;
+            mix-blend-mode: color-dodge;
+            filter: brightness(1.15) contrast(1.25);
+            transition: opacity 0.25s ease;
+        }
+
+        .is-foil .foil-shader {
+            opacity: 0.85;
+        }
+
+        /* Плавное мерцание фойлы прямо в сетке альбома */
+        .slot-foil .foil-shader {
+            opacity: 0.65;
+            animation: idle-holo 5s ease-in-out infinite alternate;
+        }
+        @keyframes idle-holo {
+            0% { background-position: 0% 20%, center; }
+            100% { background-position: 100% 80%, center; }
+        }
+    </style>
+</head>
+<body :class="{ 'theme-light': isLightTheme }" class="min-h-screen pb-14">
+    <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
+        
+        <!-- Шапка с большим логотипом и переключателем темы -->
+        <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-6 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
+            <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+                <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
+                     class="h-24 sm:h-28 md:h-32 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
+                <div>
+                    <h1 class="font-fantasy text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-wider" style="color: var(--accent-bright)">
+                        АЛЬБОМ КОЛЛЕКЦИОНЕРА
+                    </h1>
+                    <p class="text-sm mt-1.5" style="color: var(--text-muted)">
+                        Выпуск: <strong style="color: var(--text-main)">Гибель богов</strong> 
+                        <span class="mx-2">•</span> 
+                        Уникальных: <strong class="text-emerald-500">{{ collectedCount }} / {{ cards.length }}</strong> ({{ progressPercent }}%)
+                        <span class="mx-2">•</span>
+                        Всего карт с дублями: <strong style="color: var(--accent)">{{ totalCopiesCount }}</strong>
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                <!-- Прогресс-бар -->
+                <div class="w-full sm:w-64 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                    <div class="h-full rounded-full transition-all duration-500"
+                         style="background: linear-gradient(90deg, #9c7a44, #10b981)"
+                         :style="{ width: progressPercent + '%' }"></div>
+                </div>
+
+                <!-- Кнопка переключения темы (Темный Обсидиан / Светлый Пергамент) -->
+                <button @click="toggleTheme" class="ui-input px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80 transition whitespace-nowrap flex items-center gap-2">
+                    <span>{{ isLightTheme ? '🌙 Тёмный обсидиан' : '📜 Светлый пергамент' }}</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Панель фильтров -->
+        <div class="ui-panel rounded-2xl p-4 sm:p-5 mb-6 shadow-lg">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                
+                <div>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Стихия</label>
+                    <select v-model="selectedElement" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="ALL">Все стихии</option>
+                        <option value="Степи">Степи</option>
+                        <option value="Горы">Горы</option>
+                        <option value="Леса">Леса</option>
+                        <option value="Болота">Болота</option>
+                        <option value="Тьма">Тьма</option>
+                        <option value="Нейтральная">Нейтральная</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Класс / Тип карты</label>
+                    <select v-model="selectedClass" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="ALL">Все классы и типы</option>
+                        <option v-for="cls in availableClasses" :key="cls" :value="cls">{{ cls }}</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Художник</label>
+                    <select v-model="selectedArtist" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="ALL">Все художники ({{ availableArtists.length }})</option>
+                        <option v-for="artist in availableArtists" :key="artist" :value="artist">{{ artist }}</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Коллекция</label>
+                    <select v-model="filterMode" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="ALL">Все карты ({{ cards.length }})</option>
+                        <option value="OWNED">Собранные</option>
+                        <option value="MISSING">Недостающие</option>
+                        <option value="FOIL">Только фойловые ✨</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Сортировка</label>
+                    <select v-model="sortBy" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="number">По номеру (#1–220)</option>
+                        <option value="name">По алфавиту (А–Я)</option>
+                        <option value="rarity">По редкости</option>
+                        <option value="cost">По стоимости</option>
+                    </select>
+                </div>
+
+                <div class="flex items-end">
+                    <button @click="resetFilters" class="w-full py-2 px-4 rounded-xl text-sm font-semibold transition hover:opacity-90"
+                            style="background: var(--accent); color: #121110">
+                        Сбросить всё
+                    </button>
+                </div>
+            </div>
+
+            <!-- Строка поиска и активные быстрые теги -->
+            <div class="mt-3.5 pt-3.5 flex flex-col sm:flex-row items-center gap-3" style="border-top: 1px solid var(--border-color)">
+                <div class="relative w-full">
+                    <input type="text" v-model="searchQuery" @input="resetPage" 
+                           placeholder="Быстрый поиск по названию, номеру (#49), художнику или классу..." 
+                           class="ui-input w-full rounded-xl px-4 py-2 text-sm">
+                </div>
+                <div v-if="selectedArtist !== 'ALL'" class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs whitespace-nowrap" style="background: rgba(201,166,107,0.18); border: 1px solid var(--accent)">
+                    <span>🎨 Художник: <strong>{{ selectedArtist }}</strong></span>
+                    <button @click="selectedArtist = 'ALL'" class="hover:text-red-400 font-bold ml-1">×</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Лист альбома (крупные карточки, 4 в ряд) -->
+        <div class="ui-panel binder-stage rounded-3xl p-5 sm:p-8 shadow-2xl min-h-[760px] flex flex-col justify-between">
+            
+            <div v-if="filteredCards.length === 0" class="flex-1 flex flex-col items-center justify-center py-20 text-center">
+                <p class="text-lg font-semibold mb-2">Карты по заданным фильтрам не найдены</p>
+                <p class="text-sm mb-4" style="color: var(--text-muted)">Попробуйте сбросить фильтры или изменить поисковый запрос</p>
+                <button @click="resetFilters" class="px-5 py-2 rounded-xl text-sm font-semibold" style="background: var(--accent); color: #121110">
+                    Показать все карты
+                </button>
+            </div>
+
+            <transition :name="pageDirection" mode="out-in" v-else>
+                <div :key="currentPage" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
+                    <div v-for="card in paginatedCards" :key="card.cardId" 
+                         class="card-slot rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer group"
+                         @click="openInspect(card)">
+                         
+                        <!-- Верхняя строка слота: Номер, Редкость, Стихия -->
+                        <div class="w-full flex justify-between items-center text-xs mb-2 px-1">
+                            <span class="font-bold text-sm" style="color: var(--accent-bright)">#{{ card.number }}</span>
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-medium" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
+                                {{ card.element }}
+                            </span>
+                        </div>
+
+                        <!-- Изображение карты (+15% крупнее) -->
+                        <div class="relative w-full aspect-[2/2.85] rounded-xl overflow-hidden shadow-lg"
+                             :class="{ 
+                                 'grayscale opacity-35 group-hover:opacity-65 transition-opacity': getTotal(card.cardId) === 0,
+                                 'slot-foil': getFoilCount(card.cardId) > 0 
+                             }">
+                            <img :src="card.imageUrl" :alt="card.name" class="w-full h-full object-cover" loading="lazy">
+                            <div class="foil-shader"></div>
+                        </div>
+
+                        <!-- Название и кликабельное имя художника -->
+                        <div class="mt-3 text-center px-1">
+                            <div class="text-base font-bold truncate" :title="card.name">{{ card.name }}</div>
+                            
+                            <div v-if="card.cardClass || card.cardType" class="text-[11px] mt-0.5 truncate" style="color: var(--accent)">
+                                {{ card.cardType }}{{ card.cardClass ? ' • ' + card.cardClass : '' }}
+                            </div>
+
+                            <button @click.stop="selectArtistFilter(card.artist)" 
+                                    class="text-xs mt-1 hover:underline truncate max-w-full inline-block transition"
+                                    style="color: var(--text-muted)"
+                                    title="Показать все карты этого художника">
+                                🎨 {{ card.artist }}
+                            </button>
+                        </div>
+
+                        <!-- Счетчики обычных и фойловых карт прямо на слоте -->
+                        <div class="flex items-center justify-between gap-2 mt-3 pt-2.5 px-2" style="border-top: 1px solid var(--border-color)" @click.stop>
+                            <!-- Обычные -->
+                            <div class="flex items-center gap-1.5 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                <button @click="updateCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover: opacity-75">−</button>
+                                <span class="text-sm font-bold min-w-[18px] text-center" :class="getCount(card.cardId) > 0 ? 'text-emerald-500' : ' opacity-40'">
+                                    {{ getCount(card.cardId) }}
+                                </span>
+                                <button @click="updateCount(card.cardId, 1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">+</button>
+                            </div>
+
+                            <!-- Фойла -->
+                            <div class="flex items-center gap-1.5 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)" title="Фойловые копии">
+                                <span class="text-xs">✨</span>
+                                <button @click="updateFoilCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
+                                <span class="text-sm font-bold min-w-[16px] text-center" :class="getFoilCount(card.cardId) > 0 ? 'text-amber-400' : 'opacity-40'">
+                                    {{ getFoilCount(card.cardId) }}
+                                </span>
+                                <button @click="updateFoilCount(card.cardId, 1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <!-- Навигация по листам альбома -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 pt-5" style="border-top: 1px solid var(--border-color)">
+                <button @click="prevPage" :disabled="currentPage === 1" 
+                        class="ui-input disabled:opacity-30 px-6 py-2.5 rounded-xl font-semibold text-sm hover:border-amber-500/60 transition flex items-center gap-2">
+                    <span>← Предыдущий лист</span>
+                </button>
+                
+                <div class="flex items-center gap-2 text-sm font-semibold" style="color: var(--text-muted)">
+                    <span>Лист</span>
+                    <input type="number" v-model.number="currentPage" min="1" :max="totalPages" 
+                           class="ui-input w-14 text-center py-1 rounded-lg font-bold" style="color: var(--text-main)">
+                    <span>из {{ totalPages || 1 }}</span>
+                </div>
+
+                <button @click="nextPage" :disabled="currentPage >= totalPages" 
+                        class="ui-input disabled:opacity-30 px-6 py-2.5 rounded-xl font-semibold text-sm hover:border-amber-500/60 transition flex items-center gap-2">
+                    <span>Следующий лист →</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Модальное окно 3D-инспектора (Увеличенный масштаб +15%, настоящий шейдер от курсора) -->
+        <div v-if="activeCard" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="closeInspect">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl flex flex-col items-center relative" @click.stop>
+                
+                <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
+
+                <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color: var(--accent)">
+                    Карта #{{ activeCard.number }} • {{ activeCard.rarity }}
+                </div>
+                <h3 class="font-fantasy text-2xl sm:text-3xl font-bold text-center mb-1">{{ activeCard.name }}</h3>
+                
+                <!-- Кликабельная строка метаданных и художника -->
+                <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-6" style="color: var(--text-muted)">
+                    <span>{{ activeCard.element }}</span>
+                    <span v-if="activeCard.cardType">• {{ activeCard.cardType }}</span>
+                    <span v-if="activeCard.cardClass">({{ activeCard.cardClass }})</span>
+                    <span>• Стоимость: {{ activeCard.cost }} {{ activeCard.isElite ? 'Золота' : 'Серебра' }}</span>
+                    <span>•</span>
+                    <button @click="selectArtistFilter(activeCard.artist)" 
+                            class="font-semibold underline decoration-dotted hover:text-amber-400 transition flex items-center gap-1"
+                            style="color: var(--accent-bright)"
+                            title="Нажмите, чтобы отфильтровать альбом по этому художнику">
+                        🎨 Худ: {{ activeCard.artist }} 🔍
+                    </button>
+                </div>
+
+                <!-- 3D Сцена с крупной картой (w-80 / 350px) -->
+                <div class="inspect-stage my-2">
+                    <div class="relative w-72 sm:w-[345px] aspect-[2/2.85] rounded-2xl overflow-hidden inspect-card cursor-pointer select-none"
+                         :class="{ 'is-foil': getFoilCount(activeCard.cardId) > 0 || previewFoil }"
+                         :style="inspectCardStyle"
+                         @mousemove="onCardMouseMove"
+                         @mouseleave="onCardMouseLeave"
+                         @click="previewFoil = !previewFoil">
+                        
+                        <img :src="activeCard.imageUrl" :alt="activeCard.name" class="w-full h-full object-cover pointer-events-none">
+                        
+                        <!-- Голографический слой фойлы (двигается за курсором) -->
+                        <div class="foil-shader"></div>
+                        <!-- Световой блик (Glare) -->
+                        <div class="card-glare"></div>
+                    </div>
+                </div>
+
+                <p class="text-xs mt-4 mb-5 text-center" style="color: var(--text-muted)">
+                    💡 Водите курсором по карте для 3D-наклона и игры бликов • Клик по карте переключает предпросмотр фойлы ✨
+                </p>
+
+                <!-- Управление коллекцией в модалке -->
+                <div class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Обычная версия</span>
+                        <div class="flex items-center gap-4">
+                            <button @click="updateCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
+                            <span class="text-xl font-extrabold text-emerald-500 min-w-[24px] text-center">{{ getCount(activeCard.cardId) }}</span>
+                            <button @click="updateCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center" style="border-left: 1px solid var(--border-color)">
+                        <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Фойловая версия ✨</span>
+                        <div class="flex items-center gap-4">
+                            <button @click="updateFoilCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
+                            <span class="text-xl font-extrabold text-amber-400 min-w-[24px] text-center">{{ getFoilCount(activeCard.cardId) }}</span>
+                            <button @click="updateFoilCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                const cards = ref([]);
+                const inventory = ref({});
+                const isLightTheme = ref(false);
+
+                // Фильтры
+                const selectedElement = ref('ALL');
+                const selectedClass = ref('ALL');
+                const selectedArtist = ref('ALL');
+                const filterMode = ref('ALL');
+                const sortBy = ref('number');
+                const searchQuery = ref('');
+
+                // Пагинация и направление 3D-перелистывания
+                const currentPage = ref(1);
+                const pageSize = 12; // 4 крупные карты в ряд * 3 ряда
+                const pageDirection = ref('flip-next');
+
+                // 3D Инспектор карты
+                const activeCard = ref(null);
+                const previewFoil = ref(false);
+                const rotX = ref(0);
+                const rotY = ref(0);
+                const mx = ref(50);
+                const my = ref(50);
+                const glareOpacity = ref(0);
+                const isHoveringCard = ref(false);
+
+                // Авто-исправление известных багов парсинга прямо при загрузке JSON
+                const sanitizeCards = (rawCards) => {
+                    return rawCards.map(c => {
+                        // Чиним карты №24, 138, 196, 210, у которых слетел number в 0
+                        if (!c.number || c.number === 0) {
+                            const m = (c.imageUrl || '').match(/Berserk_GB_cards_(\d+)/);
+                            if (m) {
+                                c.number = parseInt(m[1], 10);
+                                c.id = `gb_${String(c.number).padStart(3, '0')}`;
+                            }
+                        }
+                        // Чиним Весталку (cost: 207 -> 4)
+                        if (c.cost > 30) c.cost = 4;
+                        return c;
+                    });
+                };
+
+                onMounted(async () => {
+                    try {
+                        const res = await fetch('cards.json');
+                        const data = await res.json();
+                        cards.value = sanitizeCards(data);
+                    } catch (e) {
+                        console.error("Ошибка чтения cards.json:", e);
+                    }
+
+                    const savedInv = localStorage.getItem('berserk_inventory_gb');
+                    if (savedInv) inventory.value = JSON.parse(savedInv);
+
+                    const savedTheme = localStorage.getItem('berserk_theme_light');
+                    if (savedTheme === 'true') isLightTheme.value = true;
+
+                    window.addEventListener('keydown', handleKeydown);
+                });
+
+                onUnmounted(() => {
+                    window.removeEventListener('keydown', handleKeydown);
+                });
+
+                const handleKeydown = (e) => {
+                    if (activeCard.value) {
+                        if (e.key === 'Escape') closeInspect();
+                        return;
+                    }
+                    if (['INPUT', 'SELECT'].includes(document.activeElement?.tagName)) return;
+                    if (e.key === 'ArrowRight') nextPage();
+                    if (e.key === 'ArrowLeft') prevPage();
+                };
+
+                const toggleTheme = () => {
+                    isLightTheme.value = !isLightTheme.value;
+                    localStorage.setItem('berserk_theme_light', isLightTheme.value);
+                };
+
+                const saveInventory = () => {
+                    localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                };
+
+                const getCount = (id) => inventory.value[id]?.normal || 0;
+                const getFoilCount = (id) => inventory.value[id]?.foil || 0;
+                const getTotal = (id) => getCount(id) + getFoilCount(id);
+
+                const updateCount = (id, delta) => {
+                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
+                    inventory.value[id].normal = Math.max(0, inventory.value[id].normal + delta);
+                    saveInventory();
+                };
+
+                const updateFoilCount = (id, delta) => {
+                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
+                    inventory.value[id].foil = Math.max(0, inventory.value[id].foil + delta);
+                    saveInventory();
+                };
+
+                // Списки художников и классов
+                const availableArtists = computed(() => {
+                    const set = new Set();
+                    cards.value.forEach(c => {
+                        if (c.artist && c.artist !== 'Не указан') set.add(c.artist);
+                    });
+                    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+                });
+
+                const availableClasses = computed(() => {
+                    const set = new Set();
+                    cards.value.forEach(c => {
+                        if (c.cardType) set.add(c.cardType);
+                        if (c.cardClass) {
+                            c.cardClass.split(/[,/]/).forEach(cls => {
+                                const trimmed = cls.trim();
+                                if (trimmed) set.add(trimmed);
+                            });
+                        }
+                    });
+                    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+                });
+
+                const selectArtistFilter = (artist) => {
+                    if (!artist) return;
+                    selectedArtist.value = artist;
+                    activeCard.value = null;
+                    currentPage.value = 1;
+                };
+
+                const filteredCards = computed(() => {
+                    const q = searchQuery.value.trim().toLowerCase();
+
+                    let result = cards.value.filter(card => {
+                        const matchElem = selectedElement.value === 'ALL' || card.element === selectedElement.value;
+                        const matchArtist = selectedArtist.value === 'ALL' || card.artist === selectedArtist.value;
+                        
+                        let matchClass = true;
+                        if (selectedClass.value !== 'ALL') {
+                            const cType = (card.cardType || '').toLowerCase();
+                            const cClass = (card.cardClass || '').toLowerCase();
+                            const target = selectedClass.value.toLowerCase();
+                            matchClass = cType === target || cClass.includes(target);
+                        }
+
+                        let matchSearch = true;
+                        if (q) {
+                            const numStr = `#${card.number}`;
+                            matchSearch = card.name.toLowerCase().includes(q) ||
+                                          (card.artist && card.artist.toLowerCase().includes(q)) ||
+                                          (card.cardClass && card.cardClass.toLowerCase().includes(q)) ||
+                                          numStr.includes(q);
+                        }
+
+                        const total = getTotal(card.cardId);
+                        let matchMode = true;
+                        if (filterMode.value === 'OWNED') matchMode = total > 0;
+                        if (filterMode.value === 'MISSING') matchMode = total === 0;
+                        if (filterMode.value === 'FOIL') matchMode = getFoilCount(card.cardId) > 0;
+
+                        return matchElem && matchArtist && matchClass && matchSearch && matchMode;
+                    });
+
+                    result.sort((a, b) => {
+                        if (sortBy.value === 'number') {
+                            return (a.number || 999) - (b.number || 999);
+                        } else if (sortBy.value === 'name') {
+                            return a.name.localeCompare(b.name, 'ru');
+                        } else if (sortBy.value === 'rarity') {
+                            const w = { 'Ультраредкая': 4, 'Редкая': 3, 'Необычная': 2, 'Частая': 1 };
+                            return (w[b.rarity] || 0) - (w[a.rarity] || 0) || (a.number - b.number);
+                        } else if (sortBy.value === 'cost') {
+                            return (b.cost || 0) - (a.cost || 0) || (a.number - b.number);
+                        }
+                        return 0;
+                    });
+
+                    return result;
+                });
+
+                const totalPages = computed(() => Math.ceil(filteredCards.value.length / pageSize) || 1);
+
+                const paginatedCards = computed(() => {
+                    const start = (currentPage.value - 1) * pageSize;
+                    return filteredCards.value.slice(start, start + pageSize);
+                });
+
+                const prevPage = () => {
+                    if (currentPage.value > 1) {
+                        pageDirection.value = 'flip-prev';
+                        currentPage.value--;
+                    }
+                };
+                const nextPage = () => {
+                    if (currentPage.value < totalPages.value) {
+                        pageDirection.value = 'flip-next';
+                        currentPage.value++;
+                    }
+                };
+                const resetPage = () => { currentPage.value = 1; };
+
+                const resetFilters = () => {
+                    selectedElement.value = 'ALL';
+                    selectedClass.value = 'ALL';
+                    selectedArtist.value = 'ALL';
+                    filterMode.value = 'ALL';
+                    sortBy.value = 'number';
+                    searchQuery.value = '';
+                    currentPage.value = 1;
+                };
+
+                // Статистика коллекции
+                const collectedCount = computed(() => cards.value.filter(c => getTotal(c.cardId) > 0).length);
+                const totalCopiesCount = computed(() => cards.value.reduce((acc, c) => acc + getTotal(c.cardId), 0));
+                const progressPercent = computed(() => cards.value.length ? Math.round((collectedCount.value / cards.value.length) * 100) : 0);
+
+                // Физика 3D-наклона и бликов в модальном окне
+                const openInspect = (card) => {
+                    activeCard.value = card;
+                    previewFoil.value = false;
+                    onCardMouseLeave();
+                };
+                const closeInspect = () => { activeCard.value = null; };
+
+                const onCardMouseMove = (e) => {
+                    isHoveringCard.value = true;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    const px = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                    const py = Math.max(0, Math.min(100, (y / rect.height) * 100));
+
+                    mx.value = px;
+                    my.value = py;
+                    glareOpacity.value = 1;
+
+                    // Плавный и естественный угол наклона до 16 градусов
+                    rotX.value = ((py - 50) / 50) * -16;
+                    rotY.value = ((px - 50) / 50) * 16;
+                };
+
+                const onCardMouseLeave = () => {
+                    isHoveringCard.value = false;
+                    rotX.value = 0;
+                    rotY.value = 0;
+                    mx.value = 50;
+                    my.value = 50;
+                    glareOpacity.value = 0;
+                };
+
+                const inspectCardStyle = computed(() => ({
+                    transform: `rotateX(${rotX.value.toFixed(2)}deg) rotateY(${rotY.value.toFixed(2)}deg) scale(${isHoveringCard.value ? 1.03 : 1})`,
+                    transition: isHoveringCard.value ? 'transform 0.06s ease-out' : 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)',
+                    '--mx': `${mx.value}%`,
+                    '--my': `${my.value}%`,
+                    '--bg-x': `${50 + (mx.value - 50) * 1.4}%`,
+                    '--bg-y': `${50 + (my.value - 50) * 1.4}%`,
+                    '--glare-opacity': glareOpacity.value
+                }));
+
+                return {
+                    cards, isLightTheme, toggleTheme,
+                    selectedElement, selectedClass, selectedArtist, filterMode, sortBy, searchQuery,
+                    currentPage, pageDirection, totalPages, paginatedCards, filteredCards,
+                    availableArtists, availableClasses, selectArtistFilter,
+                    getCount, getFoilCount, getTotal, updateCount, updateFoilCount,
+                    prevPage, nextPage, resetPage, resetFilters,
+                    collectedCount, totalCopiesCount, progressPercent,
+                    activeCard, previewFoil, openInspect, closeInspect,
+                    onCardMouseMove, onCardMouseLeave, inspectCardStyle
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
