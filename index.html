@@ -11,7 +11,7 @@
         :root {
             --bg-main: #121110;
             --bg-panel: rgba(26, 24, 22, 0.88);
-            --bg-slot: rgba(15, 14, 13, 0.75);
+            --bg-slot: rgba(15, 14, 13, 0.78);
             --border-color: rgba(168, 139, 98, 0.25);
             --border-hover: rgba(201, 166, 107, 0.65);
             --text-main: #eae6df;
@@ -66,7 +66,6 @@
             perspective: 2200px;
         }
 
-        /* Направленная 3D-анимация перелистывания ВПЕРЕД (лист уходит влево) */
         .flip-next-enter-active, .flip-next-leave-active,
         .flip-prev-enter-active, .flip-prev-leave-active {
             transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
@@ -80,8 +79,6 @@
             opacity: 0;
             transform: translateX(60px) rotateY(22deg) scale(0.96);
         }
-
-        /* Перелистывание НАЗАД (лист уходит вправо) */
         .flip-prev-leave-to {
             opacity: 0;
             transform: translateX(60px) rotateY(22deg) scale(0.96);
@@ -103,6 +100,18 @@
             transform: translateY(-3px);
         }
 
+        /* Свечение значков редкости */
+        .rarity-badge {
+            transition: transform 0.2s ease, filter 0.2s ease;
+        }
+        .rarity-badge:hover {
+            transform: scale(1.15);
+        }
+        .rarity-common { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)); }
+        .rarity-uncommon { filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.35)); }
+        .rarity-rare { filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.45)); }
+        .rarity-ultra { filter: drop-shadow(0 0 9px rgba(244, 63, 94, 0.6)); }
+
         /* Интерактивная 3D-карта в модалке */
         .inspect-stage {
             perspective: 1200px;
@@ -113,7 +122,7 @@
             box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.75), 0 0 25px rgba(201, 166, 107, 0.15);
         }
 
-        /* Реалистичный световой блик от курсора (Glare) */
+        /* Световой блик от курсора (Glare) */
         .card-glare {
             position: absolute;
             inset: 0;
@@ -129,7 +138,7 @@
             transition: opacity 0.2s ease;
         }
 
-        /* Настоящий голографический шейдер фойлы, привязанный к координатам мыши */
+        /* Голографический шейдер фойлы */
         .foil-shader {
             position: absolute;
             inset: 0;
@@ -161,7 +170,6 @@
             opacity: 0.85;
         }
 
-        /* Плавное мерцание фойлы прямо в сетке альбома */
         .slot-foil .foil-shader {
             opacity: 0.65;
             animation: idle-holo 5s ease-in-out infinite alternate;
@@ -175,7 +183,7 @@
 <body :class="{ 'theme-light': isLightTheme }" class="min-h-screen pb-14">
     <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
         
-        <!-- Шапка с большим логотипом и переключателем темы -->
+        <!-- Шапка -->
         <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-6 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
             <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
                 <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
@@ -187,23 +195,28 @@
                     <p class="text-sm mt-1.5" style="color: var(--text-muted)">
                         Выпуск: <strong style="color: var(--text-main)">Гибель богов</strong> 
                         <span class="mx-2">•</span> 
-                        Уникальных: <strong class="text-emerald-500">{{ collectedCount }} / {{ cards.length }}</strong> ({{ progressPercent }}%)
+                        Собрано: <strong class="text-emerald-500">{{ collectedCount }} / {{ cards.length }}</strong> ({{ progressPercent }}%)
                         <span class="mx-2">•</span>
-                        Всего карт с дублями: <strong style="color: var(--accent)">{{ totalCopiesCount }}</strong>
+                        Всего копий: <strong style="color: var(--accent)">{{ totalCopiesCount }}</strong>
                     </p>
                 </div>
             </div>
 
-            <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+            <div class="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto">
                 <!-- Прогресс-бар -->
-                <div class="w-full sm:w-64 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                <div class="w-full sm:w-56 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                     <div class="h-full rounded-full transition-all duration-500"
                          style="background: linear-gradient(90deg, #9c7a44, #10b981)"
                          :style="{ width: progressPercent + '%' }"></div>
                 </div>
 
-                <!-- Кнопка переключения темы (Темный Обсидиан / Светлый Пергамент) -->
-                <button @click="toggleTheme" class="ui-input px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80 transition whitespace-nowrap flex items-center gap-2">
+                <!-- Кнопка переноса/бэкапа коллекции -->
+                <button @click="showSyncModal = true" class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-1.5">
+                    <span>💾 Бэкап / Перенос</span>
+                </button>
+
+                <!-- Переключатель темы -->
+                <button @click="toggleTheme" class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-1.5">
                     <span>{{ isLightTheme ? '🌙 Тёмный обсидиан' : '📜 Светлый пергамент' }}</span>
                 </button>
             </div>
@@ -227,10 +240,13 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Класс / Тип карты</label>
-                    <select v-model="selectedClass" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
-                        <option value="ALL">Все классы и типы</option>
-                        <option v-for="cls in availableClasses" :key="cls" :value="cls">{{ cls }}</option>
+                    <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Редкость</label>
+                    <select v-model="selectedRarity" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
+                        <option value="ALL">Любая редкость</option>
+                        <option value="Частая">Частая</option>
+                        <option value="Необычная">Необычная</option>
+                        <option value="Редкая">Редкая</option>
+                        <option value="Ультраредкая">Ультраредкая</option>
                     </select>
                 </div>
 
@@ -270,15 +286,32 @@
                 </div>
             </div>
 
-            <!-- Строка поиска и активные быстрые теги -->
-            <div class="mt-3.5 pt-3.5 flex flex-col sm:flex-row items-center gap-3" style="border-top: 1px solid var(--border-color)">
-                <div class="relative w-full">
+            <!-- Строка поиска + Быстрые иконки редкости -->
+            <div class="mt-3.5 pt-3.5 flex flex-col md:flex-row items-center justify-between gap-3" style="border-top: 1px solid var(--border-color)">
+                <div class="relative w-full md:flex-1">
                     <input type="text" v-model="searchQuery" @input="resetPage" 
                            placeholder="Быстрый поиск по названию, номеру (#49), художнику или классу..." 
                            class="ui-input w-full rounded-xl px-4 py-2 text-sm">
                 </div>
+
+                <!-- Быстрый фильтр по иконкам редкости -->
+                <div class="flex items-center gap-2 self-end md:self-auto">
+                    <span class="text-xs mr-1 hidden sm:inline" style="color: var(--text-muted)">Редкость:</span>
+                    <button v-for="(iconUrl, rName) in rarityIcons" :key="rName"
+                            @click="toggleRarityFilter(rName)"
+                            class="p-1.5 rounded-xl border transition flex items-center justify-center"
+                            :style="{
+                                background: selectedRarity === rName ? 'rgba(201,166,107,0.22)' : 'var(--input-bg)',
+                                borderColor: selectedRarity === rName ? 'var(--accent)' : 'var(--border-color)'
+                            }"
+                            :title="rName">
+                        <img :src="iconUrl" :alt="rName" class="w-5 h-5 object-contain" :class="getRarityClass(rName)">
+                    </button>
+                </div>
+
+                <!-- Плашка активного фильтра художника -->
                 <div v-if="selectedArtist !== 'ALL'" class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs whitespace-nowrap" style="background: rgba(201,166,107,0.18); border: 1px solid var(--accent)">
-                    <span>🎨 Художник: <strong>{{ selectedArtist }}</strong></span>
+                    <span>🎨 <strong>{{ selectedArtist }}</strong></span>
                     <button @click="selectedArtist = 'ALL'" class="hover:text-red-400 font-bold ml-1">×</button>
                 </div>
             </div>
@@ -301,7 +334,7 @@
                          class="card-slot rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer group"
                          @click="openInspect(card)">
                          
-                        <!-- Верхняя строка слота: Номер, Редкость, Стихия -->
+                        <!-- Верхняя строка слота: Номер и Стихия -->
                         <div class="w-full flex justify-between items-center text-xs mb-2 px-1">
                             <span class="font-bold text-sm" style="color: var(--accent-bright)">#{{ card.number }}</span>
                             <span class="px-2 py-0.5 rounded-md text-[11px] font-medium" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
@@ -309,7 +342,7 @@
                             </span>
                         </div>
 
-                        <!-- Изображение карты (+15% крупнее) -->
+                        <!-- Изображение карты -->
                         <div class="relative w-full aspect-[2/2.85] rounded-xl overflow-hidden shadow-lg"
                              :class="{ 
                                  'grayscale opacity-35 group-hover:opacity-65 transition-opacity': getTotal(card.cardId) === 0,
@@ -319,35 +352,49 @@
                             <div class="foil-shader"></div>
                         </div>
 
-                        <!-- Название и кликабельное имя художника -->
-                        <div class="mt-3 text-center px-1">
-                            <div class="text-base font-bold truncate" :title="card.name">{{ card.name }}</div>
-                            
-                            <div v-if="card.cardClass || card.cardType" class="text-[11px] mt-0.5 truncate" style="color: var(--accent)">
-                                {{ card.cardType }}{{ card.cardClass ? ' • ' + card.cardClass : '' }}
+                        <!-- Информационный блок под картой: Слева текст, Справа значок редкости (как на референсе) -->
+                        <div class="mt-3 px-1.5 flex items-center justify-between gap-2 min-h-[54px]">
+                            <div class="min-w-0 flex-1 text-left">
+                                <div class="text-base font-bold truncate leading-tight" :title="card.name">{{ card.name }}</div>
+                                
+                                <!-- Показываем класс/тип только если он реально задан (без пустого "Существо" у всех подряд) -->
+                                <div v-if="formatCardSubtitle(card)" class="text-[11px] font-medium mt-0.5 truncate" style="color: var(--accent)">
+                                    {{ formatCardSubtitle(card) }}
+                                </div>
+
+                                <button @click.stop="selectArtistFilter(card.artist)" 
+                                        class="text-xs mt-0.5 hover:underline truncate max-w-full block transition"
+                                        style="color: var(--text-muted)"
+                                        title="Показать все карты этого художника">
+                                    🎨 {{ card.artist }}
+                                </button>
                             </div>
 
-                            <button @click.stop="selectArtistFilter(card.artist)" 
-                                    class="text-xs mt-1 hover:underline truncate max-w-full inline-block transition"
-                                    style="color: var(--text-muted)"
-                                    title="Показать все карты этого художника">
-                                🎨 {{ card.artist }}
+                            <!-- Значок редкости в правом углу инфо-блока -->
+                            <button v-if="getRarityIcon(card.rarity)"
+                                    @click.stop="toggleRarityFilter(card.rarity)"
+                                    class="shrink-0 p-1 rounded-xl hover:bg-white/5 transition flex items-center justify-center"
+                                    :title="'Редкость: ' + card.rarity + ' (клик для фильтра)'">
+                                <img :src="getRarityIcon(card.rarity)" 
+                                     :alt="card.rarity" 
+                                     class="w-7 h-7 object-contain rarity-badge"
+                                     :class="getRarityClass(card.rarity)">
                             </button>
                         </div>
 
-                        <!-- Счетчики обычных и фойловых карт прямо на слоте -->
-                        <div class="flex items-center justify-between gap-2 mt-3 pt-2.5 px-2" style="border-top: 1px solid var(--border-color)" @click.stop>
+                        <!-- Счетчики обычных и фойловых карт -->
+                        <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
                             <!-- Обычные -->
-                            <div class="flex items-center gap-1.5 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                                <button @click="updateCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover: opacity-75">−</button>
-                                <span class="text-sm font-bold min-w-[18px] text-center" :class="getCount(card.cardId) > 0 ? 'text-emerald-500' : ' opacity-40'">
+                            <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                <button @click="updateCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
+                                <span class="text-sm font-bold min-w-[18px] text-center" :class="getCount(card.cardId) > 0 ? 'text-emerald-500' : 'opacity-40'">
                                     {{ getCount(card.cardId) }}
                                 </span>
                                 <button @click="updateCount(card.cardId, 1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">+</button>
                             </div>
 
                             <!-- Фойла -->
-                            <div class="flex items-center gap-1.5 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)" title="Фойловые копии">
+                            <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)" title="Фойловые копии">
                                 <span class="text-xs">✨</span>
                                 <button @click="updateFoilCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
                                 <span class="text-sm font-bold min-w-[16px] text-center" :class="getFoilCount(card.cardId) > 0 ? 'text-amber-400' : 'opacity-40'">
@@ -381,34 +428,38 @@
             </div>
         </div>
 
-        <!-- Модальное окно 3D-инспектора (Увеличенный масштаб +15%, настоящий шейдер от курсора) -->
+        <!-- Модальное окно 3D-инспектора -->
         <div v-if="activeCard" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="closeInspect">
             <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl flex flex-col items-center relative" @click.stop>
                 
                 <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
 
-                <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color: var(--accent)">
-                    Карта #{{ activeCard.number }} • {{ activeCard.rarity }}
+                <!-- Верхняя плашка с номером и иконкой редкости -->
+                <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-1.5" style="color: var(--accent)">
+                    <span>Карта #{{ activeCard.number }}</span>
+                    <span>•</span>
+                    <img v-if="getRarityIcon(activeCard.rarity)" :src="getRarityIcon(activeCard.rarity)" class="w-5 h-5 object-contain inline-block" :class="getRarityClass(activeCard.rarity)">
+                    <span>{{ activeCard.rarity }}</span>
                 </div>
+
                 <h3 class="font-fantasy text-2xl sm:text-3xl font-bold text-center mb-1">{{ activeCard.name }}</h3>
                 
-                <!-- Кликабельная строка метаданных и художника -->
-                <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-6" style="color: var(--text-muted)">
+                <!-- Метаданные и кликабельный художник -->
+                <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-5" style="color: var(--text-muted)">
                     <span>{{ activeCard.element }}</span>
-                    <span v-if="activeCard.cardType">• {{ activeCard.cardType }}</span>
-                    <span v-if="activeCard.cardClass">({{ activeCard.cardClass }})</span>
+                    <span v-if="formatCardSubtitle(activeCard)" style="color: var(--accent)">• {{ formatCardSubtitle(activeCard) }}</span>
                     <span>• Стоимость: {{ activeCard.cost }} {{ activeCard.isElite ? 'Золота' : 'Серебра' }}</span>
                     <span>•</span>
                     <button @click="selectArtistFilter(activeCard.artist)" 
                             class="font-semibold underline decoration-dotted hover:text-amber-400 transition flex items-center gap-1"
                             style="color: var(--accent-bright)"
-                            title="Нажмите, чтобы отфильтровать альбом по этому художнику">
+                            title="Отфильтровать альбом по этому художнику">
                         🎨 Худ: {{ activeCard.artist }} 🔍
                     </button>
                 </div>
 
-                <!-- 3D Сцена с крупной картой (w-80 / 350px) -->
-                <div class="inspect-stage my-2">
+                <!-- 3D Сцена с крупной картой -->
+                <div class="inspect-stage my-1">
                     <div class="relative w-72 sm:w-[345px] aspect-[2/2.85] rounded-2xl overflow-hidden inspect-card cursor-pointer select-none"
                          :class="{ 'is-foil': getFoilCount(activeCard.cardId) > 0 || previewFoil }"
                          :style="inspectCardStyle"
@@ -417,10 +468,7 @@
                          @click="previewFoil = !previewFoil">
                         
                         <img :src="activeCard.imageUrl" :alt="activeCard.name" class="w-full h-full object-cover pointer-events-none">
-                        
-                        <!-- Голографический слой фойлы (двигается за курсором) -->
                         <div class="foil-shader"></div>
-                        <!-- Световой блик (Glare) -->
                         <div class="card-glare"></div>
                     </div>
                 </div>
@@ -429,7 +477,7 @@
                     💡 Водите курсором по карте для 3D-наклона и игры бликов • Клик по карте переключает предпросмотр фойлы ✨
                 </p>
 
-                <!-- Управление коллекцией в модалке -->
+                <!-- Управление количеством в инспекторе -->
                 <div class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                     <div class="flex flex-col items-center">
                         <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Обычная версия</span>
@@ -453,10 +501,41 @@
             </div>
         </div>
 
+        <!-- Модальное окно Бэкапа / Переноса коллекции (между localhost, GitHub Pages и телефоном) -->
+        <div v-if="showSyncModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="showSyncModal = false">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative" @click.stop>
+                <button @click="showSyncModal = false" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
+                
+                <h3 class="font-fantasy text-xl font-bold mb-2" style="color: var(--accent-bright)">Бэкап и перенос коллекции</h3>
+                <p class="text-xs mb-4" style="color: var(--text-muted)">
+                    Скопируйте код ниже на старом устройстве (или на localhost) и вставьте его на сайте GitHub Pages, чтобы мгновенно перенести все отмеченные карты и фойлу.
+                </p>
+
+                <label class="block text-xs font-semibold mb-1.5">Ваш код коллекции (JSON):</label>
+                <textarea v-model="syncCodeText" rows="5" 
+                          class="ui-input w-full rounded-xl p-3 text-xs font-mono mb-4"
+                          placeholder='{"100791":{"normal":1,"foil":0}}'></textarea>
+
+                <div class="flex flex-wrap gap-3">
+                    <button @click="copySyncCode" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold transition"
+                            style="background: var(--accent); color: #121110">
+                        📋 Скопировать мой код
+                    </button>
+                    <button @click="applySyncCode" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">
+                        📥 Загрузить из кода
+                    </button>
+                    <button @click="downloadBackupFile" class="ui-input py-2.5 px-4 rounded-xl text-xs font-semibold hover:opacity-80 transition">
+                        ⬇️ Скачать .json
+                    </button>
+                </div>
+                <p v-if="syncStatusMsg" class="text-xs text-emerald-400 font-semibold mt-3 text-center">{{ syncStatusMsg }}</p>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+        const { createApp, ref, computed, watch, onMounted, onUnmounted } = Vue;
 
         createApp({
             setup() {
@@ -464,20 +543,36 @@
                 const inventory = ref({});
                 const isLightTheme = ref(false);
 
+                // Официальные иконки редкости
+                const rarityIcons = {
+                    'Частая': 'https://berserk.ru/image/cache/berserk/data/Берсерк/Война%20Стихий/Частая-30x30.png',
+                    'Необычная': 'https://berserk.ru/image/cache/berserk/data/Берсерк/Война%20Стихий/Необычная-30x30.png',
+                    'Редкая': 'https://berserk.ru/image/cache/berserk/data/Берсерк/Война%20Стихий/Редкая-30x30.png',
+                    'Ультраредкая': 'https://berserk.ru/image/cache/berserk/data/Берсерк/Война%20Стихий/Ультраредкая-30x30.png'
+                };
+
+                const getRarityIcon = (rarity) => rarityIcons[rarity] || rarityIcons['Частая'];
+                const getRarityClass = (rarity) => ({
+                    'Частая': 'rarity-common',
+                    'Необычная': 'rarity-uncommon',
+                    'Редкая': 'rarity-rare',
+                    'Ультраредкая': 'rarity-ultra'
+                }[rarity] || 'rarity-common');
+
                 // Фильтры
                 const selectedElement = ref('ALL');
-                const selectedClass = ref('ALL');
+                const selectedRarity = ref('ALL');
                 const selectedArtist = ref('ALL');
                 const filterMode = ref('ALL');
                 const sortBy = ref('number');
                 const searchQuery = ref('');
 
-                // Пагинация и направление 3D-перелистывания
+                // Пагинация
                 const currentPage = ref(1);
-                const pageSize = 12; // 4 крупные карты в ряд * 3 ряда
+                const pageSize = 12;
                 const pageDirection = ref('flip-next');
 
-                // 3D Инспектор карты
+                // Модалка 3D инспектора
                 const activeCard = ref(null);
                 const previewFoil = ref(false);
                 const rotX = ref(0);
@@ -487,10 +582,33 @@
                 const glareOpacity = ref(0);
                 const isHoveringCard = ref(false);
 
-                // Авто-исправление известных багов парсинга прямо при загрузке JSON
+                // Модалка переноса сохранений
+                const showSyncModal = ref(false);
+                const syncCodeText = ref('');
+                const syncStatusMsg = ref('');
+
+                watch(showSyncModal, (val) => {
+                    if (val) {
+                        syncCodeText.value = JSON.stringify(inventory.value);
+                        syncStatusMsg.value = '';
+                    }
+                });
+
+                // Форматирование подзаголовка класса/типа (скрывает дефолтное "Существо", если нет уточнения)
+                const formatCardSubtitle = (card) => {
+                    const cClass = (card.cardClass || card.class || '').trim();
+                    const cType = (card.cardType || '').trim();
+                    if (cClass && cClass !== 'Разное') {
+                        return cType && cType !== 'Существо' ? `${cType} • ${cClass}` : cClass;
+                    }
+                    if (cType && cType !== 'Существо') {
+                        return cType;
+                    }
+                    return '';
+                };
+
                 const sanitizeCards = (rawCards) => {
                     return rawCards.map(c => {
-                        // Чиним карты №24, 138, 196, 210, у которых слетел number в 0
                         if (!c.number || c.number === 0) {
                             const m = (c.imageUrl || '').match(/Berserk_GB_cards_(\d+)/);
                             if (m) {
@@ -498,7 +616,6 @@
                                 c.id = `gb_${String(c.number).padStart(3, '0')}`;
                             }
                         }
-                        // Чиним Весталку (cost: 207 -> 4)
                         if (c.cost > 30) c.cost = 4;
                         return c;
                     });
@@ -531,7 +648,11 @@
                         if (e.key === 'Escape') closeInspect();
                         return;
                     }
-                    if (['INPUT', 'SELECT'].includes(document.activeElement?.tagName)) return;
+                    if (showSyncModal.value) {
+                        if (e.key === 'Escape') showSyncModal.value = false;
+                        return;
+                    }
+                    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
                     if (e.key === 'ArrowRight') nextPage();
                     if (e.key === 'ArrowLeft') prevPage();
                 };
@@ -561,25 +682,43 @@
                     saveInventory();
                 };
 
-                // Списки художников и классов
+                // Функции переноса и бэкапа
+                const copySyncCode = async () => {
+                    try {
+                        await navigator.clipboard.writeText(syncCodeText.value);
+                        syncStatusMsg.value = '✅ Код коллекции скопирован в буфер обмена!';
+                    } catch {
+                        syncStatusMsg.value = 'Выделите текст выше и нажмите Ctrl+C';
+                    }
+                };
+
+                const applySyncCode = () => {
+                    try {
+                        const parsed = JSON.parse(syncCodeText.value);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            inventory.value = parsed;
+                            saveInventory();
+                            syncStatusMsg.value = '✅ Коллекция успешно загружена и сохранена!';
+                        }
+                    } catch {
+                        syncStatusMsg.value = '❌ Ошибка: неверный формат кода JSON';
+                    }
+                };
+
+                const downloadBackupFile = () => {
+                    const blob = new Blob([JSON.stringify(inventory.value, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `berserk_collection_backup_${new Date().toISOString().slice(0,10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
+
                 const availableArtists = computed(() => {
                     const set = new Set();
                     cards.value.forEach(c => {
                         if (c.artist && c.artist !== 'Не указан') set.add(c.artist);
-                    });
-                    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
-                });
-
-                const availableClasses = computed(() => {
-                    const set = new Set();
-                    cards.value.forEach(c => {
-                        if (c.cardType) set.add(c.cardType);
-                        if (c.cardClass) {
-                            c.cardClass.split(/[,/]/).forEach(cls => {
-                                const trimmed = cls.trim();
-                                if (trimmed) set.add(trimmed);
-                            });
-                        }
                     });
                     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
                 });
@@ -591,27 +730,26 @@
                     currentPage.value = 1;
                 };
 
+                const toggleRarityFilter = (rarity) => {
+                    selectedRarity.value = selectedRarity.value === rarity ? 'ALL' : rarity;
+                    currentPage.value = 1;
+                };
+
                 const filteredCards = computed(() => {
                     const q = searchQuery.value.trim().toLowerCase();
 
                     let result = cards.value.filter(card => {
                         const matchElem = selectedElement.value === 'ALL' || card.element === selectedElement.value;
+                        const matchRarity = selectedRarity.value === 'ALL' || card.rarity === selectedRarity.value;
                         const matchArtist = selectedArtist.value === 'ALL' || card.artist === selectedArtist.value;
-                        
-                        let matchClass = true;
-                        if (selectedClass.value !== 'ALL') {
-                            const cType = (card.cardType || '').toLowerCase();
-                            const cClass = (card.cardClass || '').toLowerCase();
-                            const target = selectedClass.value.toLowerCase();
-                            matchClass = cType === target || cClass.includes(target);
-                        }
 
                         let matchSearch = true;
                         if (q) {
                             const numStr = `#${card.number}`;
+                            const sub = formatCardSubtitle(card).toLowerCase();
                             matchSearch = card.name.toLowerCase().includes(q) ||
                                           (card.artist && card.artist.toLowerCase().includes(q)) ||
-                                          (card.cardClass && card.cardClass.toLowerCase().includes(q)) ||
+                                          sub.includes(q) ||
                                           numStr.includes(q);
                         }
 
@@ -621,7 +759,7 @@
                         if (filterMode.value === 'MISSING') matchMode = total === 0;
                         if (filterMode.value === 'FOIL') matchMode = getFoilCount(card.cardId) > 0;
 
-                        return matchElem && matchArtist && matchClass && matchSearch && matchMode;
+                        return matchElem && matchRarity && matchArtist && matchSearch && matchMode;
                     });
 
                     result.sort((a, b) => {
@@ -664,7 +802,7 @@
 
                 const resetFilters = () => {
                     selectedElement.value = 'ALL';
-                    selectedClass.value = 'ALL';
+                    selectedRarity.value = 'ALL';
                     selectedArtist.value = 'ALL';
                     filterMode.value = 'ALL';
                     sortBy.value = 'number';
@@ -672,12 +810,10 @@
                     currentPage.value = 1;
                 };
 
-                // Статистика коллекции
                 const collectedCount = computed(() => cards.value.filter(c => getTotal(c.cardId) > 0).length);
                 const totalCopiesCount = computed(() => cards.value.reduce((acc, c) => acc + getTotal(c.cardId), 0));
                 const progressPercent = computed(() => cards.value.length ? Math.round((collectedCount.value / cards.value.length) * 100) : 0);
 
-                // Физика 3D-наклона и бликов в модальном окне
                 const openInspect = (card) => {
                     activeCard.value = card;
                     previewFoil.value = false;
@@ -698,7 +834,6 @@
                     my.value = py;
                     glareOpacity.value = 1;
 
-                    // Плавный и естественный угол наклона до 16 градусов
                     rotX.value = ((py - 50) / 50) * -16;
                     rotY.value = ((px - 50) / 50) * 16;
                 };
@@ -724,14 +859,16 @@
 
                 return {
                     cards, isLightTheme, toggleTheme,
-                    selectedElement, selectedClass, selectedArtist, filterMode, sortBy, searchQuery,
+                    rarityIcons, getRarityIcon, getRarityClass, formatCardSubtitle,
+                    selectedElement, selectedRarity, selectedArtist, filterMode, sortBy, searchQuery,
                     currentPage, pageDirection, totalPages, paginatedCards, filteredCards,
-                    availableArtists, availableClasses, selectArtistFilter,
+                    availableArtists, selectArtistFilter, toggleRarityFilter,
                     getCount, getFoilCount, getTotal, updateCount, updateFoilCount,
                     prevPage, nextPage, resetPage, resetFilters,
                     collectedCount, totalCopiesCount, progressPercent,
                     activeCard, previewFoil, openInspect, closeInspect,
-                    onCardMouseMove, onCardMouseLeave, inspectCardStyle
+                    onCardMouseMove, onCardMouseLeave, inspectCardStyle,
+                    showSyncModal, syncCodeText, syncStatusMsg, copySyncCode, applySyncCode, downloadBackupFile
                 };
             }
         }).mount('#app');
