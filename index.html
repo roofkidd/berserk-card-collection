@@ -663,7 +663,7 @@
 
                 onMounted(async () => {
                     try {
-                        const res = await fetch('cards.json');
+                        const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
                         const data = await res.json();
                         cards.value = sanitizeCards(data);
                     } catch (e) {
