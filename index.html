@@ -21,25 +21,11 @@
             --input-bg: #181614;
         }
 
-        .theme-light {
-            --bg-main: #f4f1ea;
-            --bg-panel: rgba(255, 253, 249, 0.92);
-            --bg-slot: rgba(242, 237, 228, 0.85);
-            --border-color: rgba(140, 118, 88, 0.25);
-            --border-hover: rgba(140, 105, 54, 0.7);
-            --text-main: #2c2623;
-            --text-muted: #6e655c;
-            --accent: #8c6936;
-            --accent-bright: #6e4f22;
-            --input-bg: #ffffff;
-        }
-
         body {
             background-color: var(--bg-main);
             background-image: radial-gradient(circle at 50% 0%, rgba(180, 140, 80, 0.08) 0%, transparent 70%);
             color: var(--text-main);
             font-family: 'Inter', system-ui, sans-serif;
-            transition: background-color 0.35s ease, color 0.35s ease;
             overflow-x: hidden;
         }
 
@@ -59,6 +45,24 @@
         .ui-input:focus {
             outline: none;
             border-color: var(--accent);
+        }
+
+        /* Вкладки сетов */
+        .set-tab {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+        .set-tab:hover {
+            border-color: var(--border-hover);
+            color: var(--text-main);
+        }
+        .set-tab.active {
+            background: linear-gradient(135deg, rgba(201, 166, 107, 0.22) 0%, rgba(201, 166, 107, 0.08) 100%);
+            border-color: var(--accent);
+            color: var(--accent-bright);
+            box-shadow: 0 4px 15px -3px rgba(201, 166, 107, 0.25);
         }
 
         /* 3D сцена для перелистывания листа альбома */
@@ -180,11 +184,11 @@
         }
     </style>
 </head>
-<body :class="{ 'theme-light': isLightTheme }" class="min-h-screen pb-14">
+<body class="min-h-screen pb-14">
     <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
         
         <!-- Шапка -->
-        <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-6 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
+        <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-5 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
             <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
                 <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
                      class="h-24 sm:h-28 md:h-32 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
@@ -193,34 +197,53 @@
                         АЛЬБОМ КОЛЛЕКЦИОНЕРА
                     </h1>
                     <p class="text-sm mt-1.5" style="color: var(--text-muted)">
-                        Выпуск: <strong style="color: var(--text-main)">Гибель богов</strong> 
+                        Выпуск: <strong style="color: var(--text-main)">{{ selectedSet === 'ALL' ? 'Все выпуски (' + availableSets.length + ')' : selectedSet }}</strong> 
                         <span class="mx-2">•</span> 
-                        Собрано: <strong class="text-emerald-500">{{ collectedCount }} / {{ cards.length }}</strong> ({{ progressPercent }}%)
+                        Собрано: <strong class="text-emerald-500">{{ activeSetCollected }} / {{ activeSetTotal }}</strong> ({{ activeSetPercent }}%)
                         <span class="mx-2">•</span>
-                        Всего копий: <strong style="color: var(--accent)">{{ totalCopiesCount }}</strong>
+                        Всего копий: <strong style="color: var(--accent)">{{ activeSetCopies }}</strong>
                     </p>
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto">
-                <!-- Прогресс-бар -->
-                <div class="w-full sm:w-56 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+            <div class="flex flex-wrap items-center justify-center gap-4 w-full lg:w-auto">
+                <!-- Прогресс-бар выбранного выпуска -->
+                <div class="w-full sm:w-64 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                     <div class="h-full rounded-full transition-all duration-500"
                          style="background: linear-gradient(90deg, #9c7a44, #10b981)"
-                         :style="{ width: progressPercent + '%' }"></div>
+                         :style="{ width: activeSetPercent + '%' }"></div>
                 </div>
 
                 <!-- Кнопка переноса/бэкапа коллекции -->
-                <button @click="showSyncModal = true" class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-1.5">
+                <button @click="showSyncModal = true" class="ui-input px-4 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-2">
                     <span>💾 Бэкап / Перенос</span>
-                </button>
-
-                <!-- Переключатель темы -->
-                <button @click="toggleTheme" class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-1.5">
-                    <span>{{ isLightTheme ? '🌙 Тёмный обсидиан' : '📜 Светлый пергамент' }}</span>
                 </button>
             </div>
         </header>
+
+        <!-- Вкладки переключения выпусков (Сетов) -->
+        <div class="flex flex-wrap items-center gap-2.5 mb-5">
+            <button @click="selectSet('ALL')" 
+                    class="set-tab px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2"
+                    :class="{ active: selectedSet === 'ALL' }">
+                <span>📚 Все выпуски</span>
+                <span class="px-2 py-0.5 rounded-md text-[11px]" style="background: rgba(0,0,0,0.35)">
+                    {{ totalCollectedAll }} / {{ cards.length }}
+                </span>
+            </button>
+
+            <button v-for="s in setsStats" :key="s.name"
+                    @click="selectSet(s.name)"
+                    class="set-tab px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2.5"
+                    :class="{ active: selectedSet === s.name }">
+                <span>{{ s.name }}</span>
+                <span class="px-2 py-0.5 rounded-md text-[11px]" 
+                      :class="s.collected === s.total && s.total > 0 ? 'text-emerald-400' : ''"
+                      style="background: rgba(0,0,0,0.35)">
+                    {{ s.collected }} / {{ s.total }}
+                </span>
+            </button>
+        </div>
 
         <!-- Панель фильтров -->
         <div class="ui-panel rounded-2xl p-4 sm:p-5 mb-6 shadow-lg">
@@ -261,7 +284,7 @@
                 <div>
                     <label class="block text-xs font-medium mb-1" style="color: var(--text-muted)">Коллекция</label>
                     <select v-model="filterMode" @change="resetPage" class="ui-input w-full rounded-xl px-3 py-2 text-sm">
-                        <option value="ALL">Все карты ({{ cards.length }})</option>
+                        <option value="ALL">Все карты ({{ activeSetTotal }})</option>
                         <option value="OWNED">Собранные</option>
                         <option value="MISSING">Недостающие</option>
                         <option value="FOIL">Только фойловые ✨</option>
@@ -281,7 +304,7 @@
                 <div class="flex items-end">
                     <button @click="resetFilters" class="w-full py-2 px-4 rounded-xl text-sm font-semibold transition hover:opacity-90"
                             style="background: var(--accent); color: #121110">
-                        Сбросить всё
+                        Сбросить фильтры
                     </button>
                 </div>
             </div>
@@ -290,7 +313,7 @@
             <div class="mt-3.5 pt-3.5 flex flex-col md:flex-row items-center justify-between gap-3" style="border-top: 1px solid var(--border-color)">
                 <div class="relative w-full md:flex-1">
                     <input type="text" v-model="searchQuery" @input="resetPage" 
-                           placeholder="Быстрый поиск по названию, номеру (#49), художнику или классу..." 
+                           placeholder="Быстрый поиск по названию, номеру (#91), художнику..." 
                            class="ui-input w-full rounded-xl px-4 py-2 text-sm">
                 </div>
 
@@ -322,21 +345,29 @@
             
             <div v-if="filteredCards.length === 0" class="flex-1 flex flex-col items-center justify-center py-20 text-center">
                 <p class="text-lg font-semibold mb-2">Карты по заданным фильтрам не найдены</p>
-                <p class="text-sm mb-4" style="color: var(--text-muted)">Попробуйте сбросить фильтры или изменить поисковый запрос</p>
+                <p class="text-sm mb-4" style="color: var(--text-muted)">Попробуйте сбросить фильтры или переключить выпуск</p>
                 <button @click="resetFilters" class="px-5 py-2 rounded-xl text-sm font-semibold" style="background: var(--accent); color: #121110">
-                    Показать все карты
+                    Сбросить фильтры
                 </button>
             </div>
 
             <transition :name="pageDirection" mode="out-in" v-else>
-                <div :key="currentPage" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
+                <div :key="currentPage + '_' + selectedSet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
                     <div v-for="card in paginatedCards" :key="card.cardId" 
                          class="card-slot rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer group"
                          @click="openInspect(card)">
                          
-                        <!-- Верхняя строка слота: Номер и Стихия -->
+                        <!-- Верхняя строка слота: Номер (+ бейдж сета) и Стихия -->
                         <div class="w-full flex justify-between items-center text-xs mb-2 px-1">
-                            <span class="font-bold text-sm" style="color: var(--accent-bright)">#{{ card.number }}</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-bold text-sm" style="color: var(--accent-bright)">#{{ card.number }}</span>
+                                <span v-if="selectedSet === 'ALL'" 
+                                      class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                                      style="background: rgba(201,166,107,0.16); color: var(--accent)"
+                                      :title="card.set">
+                                    {{ getSetShortName(card.set) }}
+                                </span>
+                            </div>
                             <span class="px-2 py-0.5 rounded-md text-[11px] font-medium" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
                                 {{ card.element }}
                             </span>
@@ -352,12 +383,11 @@
                             <div class="foil-shader"></div>
                         </div>
 
-                        <!-- Информационный блок под картой: Слева текст, Справа значок редкости (как на референсе) -->
+                        <!-- Информационный блок под картой: Слева текст, Справа значок редкости -->
                         <div class="mt-3 px-1.5 flex items-center justify-between gap-2 min-h-[54px]">
                             <div class="min-w-0 flex-1 text-left">
                                 <div class="text-base font-bold truncate leading-tight" :title="card.name">{{ card.name }}</div>
                                 
-                                <!-- Показываем класс/тип только если он реально задан (без пустого "Существо" у всех подряд) -->
                                 <div v-if="formatCardSubtitle(card)" class="text-[11px] font-medium mt-0.5 truncate" style="color: var(--accent)">
                                     {{ formatCardSubtitle(card) }}
                                 </div>
@@ -370,7 +400,7 @@
                                 </button>
                             </div>
 
-                            <!-- Значок редкости в правом углу инфо-блока -->
+                            <!-- Значок редкости -->
                             <button v-if="getRarityIcon(card.rarity)"
                                     @click.stop="toggleRarityFilter(card.rarity)"
                                     class="shrink-0 p-1 rounded-xl hover:bg-white/5 transition flex items-center justify-center"
@@ -434,9 +464,9 @@
                 
                 <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
 
-                <!-- Верхняя плашка с номером и иконкой редкости -->
+                <!-- Верхняя плашка с выпуском, номером и иконкой редкости -->
                 <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-1.5" style="color: var(--accent)">
-                    <span>Карта #{{ activeCard.number }}</span>
+                    <span>{{ activeCard.set }} #{{ activeCard.number }}</span>
                     <span>•</span>
                     <img v-if="getRarityIcon(activeCard.rarity)" :src="getRarityIcon(activeCard.rarity)" class="w-5 h-5 object-contain inline-block" :class="getRarityClass(activeCard.rarity)">
                     <span>{{ activeCard.rarity }}</span>
@@ -501,14 +531,14 @@
             </div>
         </div>
 
-        <!-- Модальное окно Бэкапа / Переноса коллекции (между localhost, GitHub Pages и телефоном) -->
+        <!-- Модальное окно Бэкапа / Переноса коллекции -->
         <div v-if="showSyncModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="showSyncModal = false">
             <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative" @click.stop>
                 <button @click="showSyncModal = false" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
                 
                 <h3 class="font-fantasy text-xl font-bold mb-2" style="color: var(--accent-bright)">Бэкап и перенос коллекции</h3>
                 <p class="text-xs mb-4" style="color: var(--text-muted)">
-                    Скопируйте код ниже на старом устройстве (или на localhost) и вставьте его на сайте GitHub Pages, чтобы мгновенно перенести все отмеченные карты и фойлу.
+                    Скопируйте код ниже на старом устройстве и вставьте на новом, чтобы мгновенно перенести все отмеченные карты и фойлу по всем выпускам.
                 </p>
 
                 <label class="block text-xs font-semibold mb-1.5">Ваш код коллекции (JSON):</label>
@@ -541,7 +571,6 @@
             setup() {
                 const cards = ref([]);
                 const inventory = ref({});
-                const isLightTheme = ref(false);
 
                 // Официальные иконки редкости
                 const rarityIcons = {
@@ -559,7 +588,13 @@
                     'Ультраредкая': 'rarity-ultra'
                 }[rarity] || 'rarity-common');
 
-                // Фильтры
+                const getSetShortName = (setName) => {
+                    if (!setName) return '';
+                    return setName.split(/\s+/).map(w => w[0]).join('').toUpperCase();
+                };
+
+                // Фильтры (включая активный Выпуск)
+                const selectedSet = ref('ALL');
                 const selectedElement = ref('ALL');
                 const selectedRarity = ref('ALL');
                 const selectedArtist = ref('ALL');
@@ -594,7 +629,6 @@
                     }
                 });
 
-                // Форматирование подзаголовка класса/типа (скрывает дефолтное "Существо", если нет уточнения)
                 const formatCardSubtitle = (card) => {
                     const cClass = (card.cardClass || card.class || '').trim();
                     const cType = (card.cardType || '').trim();
@@ -607,14 +641,20 @@
                     return '';
                 };
 
+                // Авто-нормализация номеров и названий сетов при чтении JSON
                 const sanitizeCards = (rawCards) => {
                     return rawCards.map(c => {
+                        if (c.set && c.set.toLowerCase().includes('сердце роя')) {
+                            c.set = 'Сердце Роя';
+                        } else if (c.set && c.set.toLowerCase().includes('гибель богов')) {
+                            c.set = 'Гибель богов';
+                        }
                         if (!c.number || c.number === 0) {
-                            const m = (c.imageUrl || '').match(/Berserk_GB_cards_(\d+)/);
-                            if (m) {
-                                c.number = parseInt(m[1], 10);
-                                c.id = `gb_${String(c.number).padStart(3, '0')}`;
-                            }
+                            const url = c.imageUrl || '';
+                            const mGb = url.match(/Berserk_GB_cards_(\d+)/i);
+                            const mSr = url.match(/(?:СР|CP|SR)[_-]?0*(\d+)/i);
+                            if (mGb) c.number = parseInt(mGb[1], 10);
+                            else if (mSr) c.number = parseInt(mSr[1], 10);
                         }
                         if (c.cost > 30) c.cost = 4;
                         return c;
@@ -633,8 +673,8 @@
                     const savedInv = localStorage.getItem('berserk_inventory_gb');
                     if (savedInv) inventory.value = JSON.parse(savedInv);
 
-                    const savedTheme = localStorage.getItem('berserk_theme_light');
-                    if (savedTheme === 'true') isLightTheme.value = true;
+                    const savedSet = localStorage.getItem('berserk_selected_set');
+                    if (savedSet) selectedSet.value = savedSet;
 
                     window.addEventListener('keydown', handleKeydown);
                 });
@@ -657,11 +697,6 @@
                     if (e.key === 'ArrowLeft') prevPage();
                 };
 
-                const toggleTheme = () => {
-                    isLightTheme.value = !isLightTheme.value;
-                    localStorage.setItem('berserk_theme_light', isLightTheme.value);
-                };
-
                 const saveInventory = () => {
                     localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
                 };
@@ -682,42 +717,43 @@
                     saveInventory();
                 };
 
-                // Функции переноса и бэкапа
-                const copySyncCode = async () => {
-                    try {
-                        await navigator.clipboard.writeText(syncCodeText.value);
-                        syncStatusMsg.value = '✅ Код коллекции скопирован в буфер обмена!';
-                    } catch {
-                        syncStatusMsg.value = 'Выделите текст выше и нажмите Ctrl+C';
-                    }
+                // Динамический список всех выпусков в базе и их статистика
+                const availableSets = computed(() => {
+                    const seen = new Set();
+                    cards.value.forEach(c => { if (c.set) seen.add(c.set); });
+                    return Array.from(seen);
+                });
+
+                const setsStats = computed(() => {
+                    return availableSets.value.map(setName => {
+                        const setCards = cards.value.filter(c => c.set === setName);
+                        const collected = setCards.filter(c => getTotal(c.cardId) > 0).length;
+                        return { name: setName, total: setCards.length, collected };
+                    });
+                });
+
+                const selectSet = (setName) => {
+                    selectedSet.value = setName;
+                    localStorage.setItem('berserk_selected_set', setName);
+                    currentPage.value = 1;
                 };
 
-                const applySyncCode = () => {
-                    try {
-                        const parsed = JSON.parse(syncCodeText.value);
-                        if (typeof parsed === 'object' && parsed !== null) {
-                            inventory.value = parsed;
-                            saveInventory();
-                            syncStatusMsg.value = '✅ Коллекция успешно загружена и сохранена!';
-                        }
-                    } catch {
-                        syncStatusMsg.value = '❌ Ошибка: неверный формат кода JSON';
-                    }
-                };
+                // Карты в рамках выбранной вкладки сета (для подсчета прогресса в шапке и списка художников)
+                const cardsInActiveSet = computed(() => {
+                    if (selectedSet.value === 'ALL') return cards.value;
+                    return cards.value.filter(c => c.set === selectedSet.value);
+                });
 
-                const downloadBackupFile = () => {
-                    const blob = new Blob([JSON.stringify(inventory.value, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `berserk_collection_backup_${new Date().toISOString().slice(0,10)}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                };
+                const totalCollectedAll = computed(() => cards.value.filter(c => getTotal(c.cardId) > 0).length);
+                const activeSetTotal = computed(() => cardsInActiveSet.value.length);
+                const activeSetCollected = computed(() => cardsInActiveSet.value.filter(c => getTotal(c.cardId) > 0).length);
+                const activeSetCopies = computed(() => cardsInActiveSet.value.reduce((acc, c) => acc + getTotal(c.cardId), 0));
+                const activeSetPercent = computed(() => activeSetTotal.value ? Math.round((activeSetCollected.value / activeSetTotal.value) * 100) : 0);
 
+                // Список художников обновляется под выбранный сет
                 const availableArtists = computed(() => {
                     const set = new Set();
-                    cards.value.forEach(c => {
+                    cardsInActiveSet.value.forEach(c => {
                         if (c.artist && c.artist !== 'Не указан') set.add(c.artist);
                     });
                     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
@@ -738,7 +774,7 @@
                 const filteredCards = computed(() => {
                     const q = searchQuery.value.trim().toLowerCase();
 
-                    let result = cards.value.filter(card => {
+                    let result = cardsInActiveSet.value.filter(card => {
                         const matchElem = selectedElement.value === 'ALL' || card.element === selectedElement.value;
                         const matchRarity = selectedRarity.value === 'ALL' || card.rarity === selectedRarity.value;
                         const matchArtist = selectedArtist.value === 'ALL' || card.artist === selectedArtist.value;
@@ -762,8 +798,13 @@
                         return matchElem && matchRarity && matchArtist && matchSearch && matchMode;
                     });
 
+                    const setOrder = { 'Гибель богов': 1, 'Сердце Роя': 2 };
+
                     result.sort((a, b) => {
                         if (sortBy.value === 'number') {
+                            if (selectedSet.value === 'ALL' && a.set !== b.set) {
+                                return (setOrder[a.set] || 99) - (setOrder[b.set] || 99);
+                            }
                             return (a.number || 999) - (b.number || 999);
                         } else if (sortBy.value === 'name') {
                             return a.name.localeCompare(b.name, 'ru');
@@ -810,9 +851,38 @@
                     currentPage.value = 1;
                 };
 
-                const collectedCount = computed(() => cards.value.filter(c => getTotal(c.cardId) > 0).length);
-                const totalCopiesCount = computed(() => cards.value.reduce((acc, c) => acc + getTotal(c.cardId), 0));
-                const progressPercent = computed(() => cards.value.length ? Math.round((collectedCount.value / cards.value.length) * 100) : 0);
+                // Перенос и бэкап
+                const copySyncCode = async () => {
+                    try {
+                        await navigator.clipboard.writeText(syncCodeText.value);
+                        syncStatusMsg.value = '✅ Код коллекции скопирован в буфер обмена!';
+                    } catch {
+                        syncStatusMsg.value = 'Выделите текст выше и нажмите Ctrl+C';
+                    }
+                };
+
+                const applySyncCode = () => {
+                    try {
+                        const parsed = JSON.parse(syncCodeText.value);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            inventory.value = parsed;
+                            saveInventory();
+                            syncStatusMsg.value = '✅ Коллекция успешно загружена и сохранена!';
+                        }
+                    } catch {
+                        syncStatusMsg.value = '❌ Ошибка: неверный формат кода JSON';
+                    }
+                };
+
+                const downloadBackupFile = () => {
+                    const blob = new Blob([JSON.stringify(inventory.value, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `berserk_collection_backup_${new Date().toISOString().slice(0,10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
 
                 const openInspect = (card) => {
                     activeCard.value = card;
@@ -858,14 +928,14 @@
                 }));
 
                 return {
-                    cards, isLightTheme, toggleTheme,
-                    rarityIcons, getRarityIcon, getRarityClass, formatCardSubtitle,
+                    cards, rarityIcons, getRarityIcon, getRarityClass, getSetShortName, formatCardSubtitle,
+                    availableSets, setsStats, selectedSet, selectSet,
+                    totalCollectedAll, activeSetTotal, activeSetCollected, activeSetCopies, activeSetPercent,
                     selectedElement, selectedRarity, selectedArtist, filterMode, sortBy, searchQuery,
                     currentPage, pageDirection, totalPages, paginatedCards, filteredCards,
                     availableArtists, selectArtistFilter, toggleRarityFilter,
                     getCount, getFoilCount, getTotal, updateCount, updateFoilCount,
                     prevPage, nextPage, resetPage, resetFilters,
-                    collectedCount, totalCopiesCount, progressPercent,
                     activeCard, previewFoil, openInspect, closeInspect,
                     onCardMouseMove, onCardMouseLeave, inspectCardStyle,
                     showSyncModal, syncCodeText, syncStatusMsg, copySyncCode, applySyncCode, downloadBackupFile
