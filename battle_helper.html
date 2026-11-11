@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Берсерк: Помощник Партии (Battle Butler)</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #121110;
+            --bg-panel: rgba(26, 24, 22, 0.92);
+            --bg-slot: rgba(15, 14, 13, 0.85);
+            --border-color: rgba(168, 139, 98, 0.25);
+            --border-hover: rgba(201, 166, 107, 0.65);
+            --text-main: #eae6df;
+            --text-muted: #9e9689;
+            --accent: #c9a66b;
+            --accent-bright: #e5c384;
+            --input-bg: #181614;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            background-image: radial-gradient(circle at 50% 0%, rgba(180, 140, 80, 0.08) 0%, transparent 70%);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow-x: hidden;
+        }
+
+        .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
+
+        .ui-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(14px);
+        }
+
+        .ui-input {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .ui-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .tab-btn {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(201, 166, 107, 0.25) 0%, rgba(201, 166, 107, 0.08) 100%);
+            border-color: var(--accent);
+            color: var(--accent-bright);
+            box-shadow: 0 4px 15px -3px rgba(201, 166, 107, 0.25);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 166, 107, 0.35); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 166, 107, 0.6); }
+    </style>
+</head>
+<body class="min-h-screen pb-16">
+    <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
+
+        <!-- Шапка батлера -->
+        <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4 text-center md:text-left">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-2xl shadow-lg">
+                    ⚔️
+                </div>
+                <div>
+                    <h1 class="font-fantasy text-2xl sm:text-3xl font-extrabold tracking-wider" style="color: var(--accent-bright)">
+                        БАТЛЕР ПАРТИИ (BATTLE HELPER)
+                    </h1>
+                    <p class="text-xs sm:text-sm mt-1" style="color: var(--text-muted)">
+                        Интерактивный помощник для дуэли • Набор отрядов из вашей базы • Трекер ХП • Справочник терминов
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <a href="index.html" class="ui-input px-4 py-2.5 rounded-xl text-xs font-bold hover:border-amber-500 transition flex items-center gap-2">
+                    <span>← Вернуться в Альбом</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Переключение вкладок приложения -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
+            <button @click="activeTab = 'builder'" class="tab-btn py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'builder' }">
+                <span>🛡️ Набор отрядов</span>
+            </button>
+            <button @click="activeTab = 'battle'" class="tab-btn py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'battle' }">
+                <span>⚔️ Стол Боя (ХП)</span>
+            </button>
+            <button @click="activeTab = 'roller'" class="tab-btn py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'roller' }">
+                <span>🎲 Кубик Удара</span>
+            </button>
+            <button @click="activeTab = 'glossary'" class="tab-btn py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'glossary' }">
+                <span>📖 Справочник правил</span>
+            </button>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ВКЛАДКА 1: НАБОР ОТРЯДОВ (BUILDER) -->
+        <!-- ========================================== -->
+        <div v-if="activeTab === 'builder'" class="space-y-6">
+            <!-- Панель настроек режима -->
+            <div class="ui-panel rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs uppercase tracking-widest font-bold" style="color: var(--accent)">Режим набора:</span>
+                    <div class="flex gap-1.5 p-1 rounded-xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <button @click="gameMode = 'mini'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition" :style="gameMode === 'mini' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Мини-бой (12🪙 / 11🥈)
+                        </button>
+                        <button @click="gameMode = 'classic'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition" :style="gameMode === 'classic' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Классика (24🪙 / 22🥈)
+                        </button>
+                    </div>
+                </div>
+
+                <button @click="startBattle" class="px-6 py-3 rounded-xl text-xs sm:text-sm font-extrabold shadow-lg transition flex items-center gap-2" style="background: var(--accent); color: #121110">
+                    <span>⚔️ Начать битву с этими отрядами!</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- ОТРЯД ИГРОК 1 (ГЛЕБ) -->
+                <div class="ui-panel rounded-3xl p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4 pb-3" style="border-bottom: 1px solid var(--border-color)">
+                            <div>
+                                <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">🛡️ Отряд Игрока 1</h3>
+                                <p class="text-xs mt-0.5" style="color: var(--text-muted)">Бюджет: {{ p1Gold }} / {{ maxGold }} Золота 🪙 | {{ p1Silver }} / {{ maxSilver }} Серебра 🥈</p>
+                            </div>
+                            <button @click="p1Army = []" class="text-xs text-rose-400 hover:underline">Очистить отряд</button>
+                        </div>
+
+                        <!-- Прогресс бары бюджетов -->
+                        <div class="grid grid-cols-2 gap-3 mb-5">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-semibold">
+                                    <span style="color: var(--text-muted)">Золото (🪙)</span>
+                                    <span>{{ p1GoldSpent }} / {{ maxGold }}</span>
+                                </div>
+                                <div class="h-2.5 rounded-full overflow-hidden" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                    <div class="h-full bg-amber-400 transition-all" :style="{ width: Math.min(100, (p1GoldSpent/maxGold)*100) + '%' }"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-semibold">
+                                    <span style="color: var(--text-muted)">Серебро (🥈)</span>
+                                    <span>{{ p1SilverSpent }} / {{ maxSilver }}</span>
+                                </div>
+                                <div class="h-2.5 rounded-full overflow-hidden" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                    <div class="h-full bg-slate-300 transition-all" :style="{ width: Math.min(100, (p1SilverSpent/maxSilver)*100) + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Список выбранных карт отряда 1 -->
+                        <div class="space-y-2 mb-4 max-h-[380px] overflow-y-auto pr-1">
+                            <div v-if="p1Army.length === 0" class="text-center py-12 text-xs" style="color: var(--text-muted)">
+                                Отряд пуст. Выберите карты из вашей коллекции ниже!
+                            </div>
+                            <div v-for="(card, idx) in p1Army" :key="card.cardId + '_' + idx"
+                                 class="p-2.5 rounded-xl flex items-center justify-between gap-3 bg-black/30 border border-white/10">
+                                <img :src="card.imageUrl" class="w-10 h-14 object-cover rounded-lg shrink-0">
+                                <div class="min-w-0 flex-1 text-left text-xs">
+                                    <div class="font-bold truncate">{{ card.name }}</div>
+                                    <div class="text-[10px] text-amber-400">#{{ card.number }} • {{ card.element }} • {{ card.cost }} {{ card.isElite ? '🪙 Золота' : '🥈 Серебра' }}</div>
+                                </div>
+                                <button @click="p1Army.splice(idx, 1)" class="w-7 h-7 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 flex items-center justify-center font-bold text-xs">×</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Добавить карту в отряд 1 -->
+                    <div>
+                        <input type="text" v-model="p1SearchQuery" placeholder="🔍 Найти карту в вашей коллекции для отряда 1..." class="ui-input w-full rounded-xl px-3.5 py-2 text-xs mb-2">
+                        <div class="max-h-40 overflow-y-auto space-y-1 p-1 rounded-xl bg-black/40 border border-white/10">
+                            <div v-for="card in filteredCollectionForP1" :key="card.cardId"
+                                 @click="addToArmy(1, card)"
+                                 class="p-2 rounded-lg text-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-500/20 transition">
+                                <div class="flex items-center gap-2 truncate">
+                                    <span class="font-bold text-amber-400">#{{ card.number }}</span>
+                                    <span class="truncate">{{ card.name }}</span>
+                                </div>
+                                <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold" :style="card.isElite ? 'background: rgba(245,158,11,0.2); color: #f59e0b' : 'background: rgba(255,255,255,0.1); color: #ccc'">
+                                    {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ОТРЯД ИГРОК 2 (ДЕВУШКА / СОПЕРНИК) -->
+                <div class="ui-panel rounded-3xl p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4 pb-3" style="border-bottom: 1px solid var(--border-color)">
+                            <div>
+                                <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">🛡️ Отряд Игрока 2</h3>
+                                <p class="text-xs mt-0.5" style="color: var(--text-muted)">Бюджет: {{ p2Gold }} / {{ maxGoldSecond }} Золота 🪙 | {{ p2Silver }} / {{ maxSilverSecond }} Серебра 🥈</p>
+                            </div>
+                            <button @click="p2Army = []" class="text-xs text-rose-400 hover:underline">Очистить отряд</button>
+                        </div>
+
+                        <!-- Прогресс бары бюджетов -->
+                        <div class="grid grid-cols-2 gap-3 mb-5">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-semibold">
+                                    <span style="color: var(--text-muted)">Золото (🪙)</span>
+                                    <span>{{ p2GoldSpent }} / {{ maxGoldSecond }}</span>
+                                </div>
+                                <div class="h-2.5 rounded-full overflow-hidden" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                    <div class="h-full bg-amber-400 transition-all" :style="{ width: Math.min(100, (p2GoldSpent/maxGoldSecond)*100) + '%' }"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-semibold">
+                                    <span style="color: var(--text-muted)">Серебро (🥈)</span>
+                                    <span>{{ p2SilverSpent }} / {{ maxSilverSecond }}</span>
+                                </div>
+                                <div class="h-2.5 rounded-full overflow-hidden" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                    <div class="h-full bg-slate-300 transition-all" :style="{ width: Math.min(100, (p2SilverSpent/maxSilverSecond)*100) + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Список выбранных карт отряда 2 -->
+                        <div class="space-y-2 mb-4 max-h-[380px] overflow-y-auto pr-1">
+                            <div v-if="p2Army.length === 0" class="text-center py-12 text-xs" style="color: var(--text-muted)">
+                                Отряд пуст. Выберите карты из вашей коллекции ниже!
+                            </div>
+                            <div v-for="(card, idx) in p2Army" :key="card.cardId + '_' + idx"
+                                 class="p-2.5 rounded-xl flex items-center justify-between gap-3 bg-black/30 border border-white/10">
+                                <img :src="card.imageUrl" class="w-10 h-14 object-cover rounded-lg shrink-0">
+                                <div class="min-w-0 flex-1 text-left text-xs">
+                                    <div class="font-bold truncate">{{ card.name }}</div>
+                                    <div class="text-[10px] text-amber-400">#{{ card.number }} • {{ card.element }} • {{ card.cost }} {{ card.isElite ? '🪙 Золота' : '🥈 Серебра' }}</div>
+                                </div>
+                                <button @click="p2Army.splice(idx, 1)" class="w-7 h-7 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 flex items-center justify-center font-bold text-xs">×</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Добавить карту в отряд 2 -->
+                    <div>
+                        <input type="text" v-model="p2SearchQuery" placeholder="🔍 Найти карту в вашей коллекции для отряда 2..." class="ui-input w-full rounded-xl px-3.5 py-2 text-xs mb-2">
+                        <div class="max-h-40 overflow-y-auto space-y-1 p-1 rounded-xl bg-black/40 border border-white/10">
+                            <div v-for="card in filteredCollectionForP2" :key="card.cardId"
+                                 @click="addToArmy(2, card)"
+                                 class="p-2 rounded-lg text-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-500/20 transition">
+                                <div class="flex items-center gap-2 truncate">
+                                    <span class="font-bold text-amber-400">#{{ card.number }}</span>
+                                    <span class="truncate">{{ card.name }}</span>
+                                </div>
+                                <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold" :style="card.isElite ? 'background: rgba(245,158,11,0.2); color: #f59e0b' : 'background: rgba(255,255,255,0.1); color: #ccc'">
+                                    {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ВКЛАДКА 2: СТОЛ БОЯ (ТРЕКЕР ХП И ПОВОРОТОВ) -->
+        <!-- ========================================== -->
+        <div v-if="activeTab === 'battle'" class="space-y-6">
+            <div class="ui-panel rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">⚔️ Активный стол боя</h3>
+                    <p class="text-xs" style="color: var(--text-muted)">Управляйте ранениями и поворотами карт прямо во время партии без бумажек!</p>
+                </div>
+                <button @click="resetBattleHp" class="px-4 py-2 rounded-xl text-xs font-bold ui-input hover:border-amber-400 transition">
+                    🔄 Сбросить все раны и повороты
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- БОЙЦЫ ИГРОКА 1 -->
+                <div class="ui-panel rounded-3xl p-6">
+                    <h3 class="font-fantasy text-lg font-bold mb-4 pb-2 border-b border-white/10 text-amber-400">Отряд Игрока 1</h3>
+                    <div v-if="battleP1.length === 0" class="text-center py-10 text-xs" style="color: var(--text-muted)">
+                        Сначала наберите отряд во вкладке «Набор отрядов» и нажмите «Начать битву»!
+                    </div>
+                    <div class="space-y-3">
+                        <div v-for="(bCard, idx) in battleP1" :key="'bp1_' + idx"
+                             class="p-3.5 rounded-2xl border transition flex flex-col sm:flex-row items-center justify-between gap-4"
+                             :style="{ background: bCard.isExhausted ? 'rgba(0,0,0,0.5)' : 'var(--input-bg)', borderColor: bCard.isExhausted ? 'rgba(255,255,255,0.1)' : 'var(--border-color)' }"
+                             :class="{ 'opacity-60': bCard.hp <= 0 }">
+                            
+                            <div class="flex items-center gap-3 w-full sm:w-auto">
+                                <img :src="bCard.imageUrl" class="w-12 h-16 object-cover rounded-xl shrink-0" :class="{ 'grayscale': bCard.hp <= 0 }">
+                                <div class="min-w-0 text-left">
+                                    <div class="font-bold text-sm truncate">{{ bCard.name }}</div>
+                                    <div class="text-xs text-amber-400">ХП: <strong class="text-white">{{ bCard.hp }}</strong> / {{ bCard.maxHp }}</div>
+                                    <div class="text-[10px] text-muted opacity-75">Удар: {{ bCard.strike }}</div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                                <button @click="adjustHp(bCard, -1)" class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 font-bold text-sm hover:bg-rose-500/40">−</button>
+                                <button @click="adjustHp(bCard, 1)" class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 font-bold text-sm hover:bg-emerald-500/40">+</button>
+                                <button @click="bCard.isExhausted = !bCard.isExhausted" 
+                                        class="px-3 py-1.5 rounded-xl text-xs font-bold border transition"
+                                        :style="bCard.isExhausted ? 'background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); color: #fca5a5' : 'background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #6ee7b7'">
+                                    {{ bCard.isExhausted ? '💤 Походил' : '🟢 Активен' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- БОЙЦЫ ИГРОКА 2 -->
+                <div class="ui-panel rounded-3xl p-6">
+                    <h3 class="font-fantasy text-lg font-bold mb-4 pb-2 border-b border-white/10 text-amber-400">Отряд Игрока 2</h3>
+                    <div v-if="battleP2.length === 0" class="text-center py-10 text-xs" style="color: var(--text-muted)">
+                        Сначала наберите отряд во вкладке «Набор отрядов» и нажмите «Начать битву»!
+                    </div>
+                    <div class="space-y-3">
+                        <div v-for="(bCard, idx) in battleP2" :key="'bp2_' + idx"
+                             class="p-3.5 rounded-2xl border transition flex flex-col sm:flex-row items-center justify-between gap-4"
+                             :style="{ background: bCard.isExhausted ? 'rgba(0,0,0,0.5)' : 'var(--input-bg)', borderColor: bCard.isExhausted ? 'rgba(255,255,255,0.1)' : 'var(--border-color)' }"
+                             :class="{ 'opacity-60': bCard.hp <= 0 }">
+                            
+                            <div class="flex items-center gap-3 w-full sm:w-auto">
+                                <img :src="bCard.imageUrl" class="w-12 h-16 object-cover rounded-xl shrink-0" :class="{ 'grayscale': bCard.hp <= 0 }">
+                                <div class="min-w-0 text-left">
+                                    <div class="font-bold text-sm truncate">{{ bCard.name }}</div>
+                                    <div class="text-xs text-amber-400">ХП: <strong class="text-white">{{ bCard.hp }}</strong> / {{ bCard.maxHp }}</div>
+                                    <div class="text-[10px] text-muted opacity-75">Удар: {{ bCard.strike }}</div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                                <button @click="adjustHp(bCard, -1)" class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 font-bold text-sm hover:bg-rose-500/40">−</button>
+                                <button @click="adjustHp(bCard, 1)" class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 font-bold text-sm hover:bg-emerald-500/40">+</button>
+                                <button @click="bCard.isExhausted = !bCard.isExhausted" 
+                                        class="px-3 py-1.5 rounded-xl text-xs font-bold border transition"
+                                        :style="bCard.isExhausted ? 'background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); color: #fca5a5' : 'background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #6ee7b7'">
+                                    {{ bCard.isExhausted ? '💤 Походил' : '🟢 Активен' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ВКЛАДКА 3: КУБИК И КАЛЬКУЛЯТОР УДАРА -->
+        <!-- ========================================== -->
+        <div v-if="activeTab === 'roller'" class="space-y-6 max-w-2xl mx-auto">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 text-center shadow-2xl">
+                <h3 class="font-fantasy text-2xl font-bold mb-2" style="color: var(--accent-bright)">🎲 Калькулятор удара и кубиков</h3>
+                <p class="text-xs mb-6" style="color: var(--text-muted)">
+                    Забудьте про бумажную таблицу 6×6! Укажите три цифры удара карты (например, 2-3-4) и бросьте кубик (или введите выпавшее на столе).
+                </p>
+
+                <div class="space-y-4 text-left mb-6">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Три цифры удара атакующей карты (через дефис или пробел):</label>
+                        <input type="text" v-model="strikeInput" placeholder="2-3-4" class="ui-input w-full rounded-xl px-4 py-2.5 text-sm font-bold">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Выпало на кубике атакующего (1–6):</label>
+                        <div class="grid grid-cols-6 gap-2">
+                            <button v-for="n in 6" :key="n" @click="diceVal = n" 
+                                    class="py-3 rounded-xl font-extrabold text-base transition border"
+                                    :style="diceVal === n ? 'background: var(--accent); color: #121110; border-color: var(--accent)' : 'background: var(--input-bg); border-color: var(--border-color)'">
+                                {{ n }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-black/40 border border-amber-500/40 text-center mb-6">
+                    <div class="text-xs text-amber-400 font-bold uppercase tracking-widest mb-1">Результат удара:</div>
+                    <div class="text-xl sm:text-2xl font-extrabold text-white">
+                        {{ strikeResultText }}
+                    </div>
+                </div>
+
+                <button @click="rollRandomDice" class="w-full py-3 rounded-xl font-bold text-sm shadow-lg transition" style="background: var(--accent); color: #121110">
+                    🎲 Бросить виртуальный кубик случайно
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ВКЛАДКА 4: СПРАВОЧНИК ПРАВИЛ И ТЕРМИНОВ -->
+        <!-- ========================================== -->
+        <div v-if="activeTab === 'glossary'" class="space-y-6">
+            <div class="ui-panel rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">📖 Глоссарий терминов и значков «Берсерка»</h3>
+                    <p class="text-xs" style="color: var(--text-muted)">Полная справка по всем механикам, чтобы не спорить во время партии!</p>
+                </div>
+                <input type="text" v-model="glossarySearch" placeholder="Поиск термина..." class="ui-input rounded-xl px-4 py-2 text-xs w-full sm:w-64">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="item in filteredGlossary" :key="item.title" class="ui-panel rounded-2xl p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center gap-2.5 mb-2">
+                            <span class="text-xl">{{ item.icon }}</span>
+                            <h4 class="font-bold text-base" style="color: var(--accent-bright)">{{ item.title }}</h4>
+                        </div>
+                        <p class="text-xs leading-relaxed" style="color: var(--text-muted)">{{ item.desc }}</p>
+                    </div>
+                    <div class="mt-4 pt-3 text-[10px] uppercase font-bold tracking-wider" style="border-top: 1px solid var(--border-color); color: var(--accent)">
+                        {{ item.category }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const activeTab = ref('builder');
+                const cards = ref([]);
+                const inventory = ref({});
+
+                // Режим набора
+                const gameMode = ref('mini'); // 'mini' (12/11) или 'classic' (24/22)
+                const maxGold = computed(() => gameMode.value === 'mini' ? 12 : 24);
+                const maxSilver = computed(() => gameMode.value === 'mini' ? 11 : 22);
+                const maxGoldSecond = computed(() => gameMode.value === 'mini' ? 12 : 25);
+                const maxSilverSecond = computed(() => gameMode.value === 'mini' ? 11 : 23);
+
+                const p1Army = ref([]);
+                const p2Army = ref([]);
+                const p1SearchQuery = ref('');
+                const p2SearchQuery = ref('');
+
+                // Стол боя
+                const battleP1 = ref([]);
+                const battleP2 = ref([]);
+
+                // Кубик
+                const strikeInput = ref('2-3-4');
+                const diceVal = ref(4);
+
+                // Глоссарий
+                const glossarySearch = ref('');
+                const glossaryItems = ref([
+                    { title: 'Броня (Armor X)', icon: '🛡️', category: 'Защита', desc: 'Первые X единиц урона от простых ударов и выстрелов в каждый ход поглощаются броней и не наносят раны существу.' },
+                    { title: 'Полёт (Fly)', icon: '🪽', category: 'Передвижение', desc: 'Существо ставится в тыловой дополнительный ряд. Может атаковать любую карту противника на поле и уязвимо для дальних атак.' },
+                    { title: 'Выстрел / Метание', icon: '🏹', category: 'Атака', desc: 'Дальняя атака без необходимости подходить вплотную. От выстрелов и метания помогает способность «Защита от выстрелов».' },
+                    { title: 'Магический разряд', icon: '⚡', category: 'Магия', desc: 'Магическая дальняя атака. От разрядов защищает «Защита от магии» или «Защита от разрядов».' },
+                    { title: 'Кровожадность X', icon: '🩸', category: 'Способности', desc: 'Когда это существо уничтожает вражескую карту простым ударом, оно излечивается на X жизней.' },
+                    { title: 'Регенерация X', icon: '✨', category: 'Исцеление', desc: 'В начале каждого вашего хода это существо автоматически исцеляет себе X ран с кладбища или текущих.' },
+                    { title: 'Отравление X', icon: '🧪', category: 'Эффекты', desc: 'В начале своего хода отравленное существо получает X ран. Яд нельзя вылечить обычным лечением.' },
+                    { title: 'Трупоедство', icon: '💀', category: 'Особое', desc: 'Поглощает карту с кладбища (убирая её из игры), полностью излечиваясь от всех ран.' },
+                    { title: 'Удар через ряд', icon: '🗡️', category: 'Ближний бой', desc: 'Существо с древковым оружием может наносить простой удар через одну клетку по прямой (например, стоя во втором ряду за спиной союзника).' },
+                    { title: 'Строй', icon: '🤝', category: 'Тактика', desc: 'Особое свойство, которое работает только тогда, когда рядом (сбоку) стоит другое дружественное существо со Строем.' },
+                    { title: 'Уникальность', icon: '👑', category: 'Ограничения', desc: 'В ваш отряд можно взять только одну копию карты с таким именем/уникальным статусом.' }
+                ]);
+
+                // Помощник определения цены и элитности карты из JSON
+                const enrichCard = (c) => {
+                    const cost = c.cost || 2;
+                    // Если стоимость >= 5 или в тексте/названии маркер элиты — считаем золотой
+                    const isElite = cost >= 5 || (c.rarity === 'Редкая' || c.rarity === 'Ультраредкая') && cost >= 4;
+                    // Примерные жизни и удар по умолчанию, если в базе нет явных полей
+                    const maxHp = c.hp || 10;
+                    const strike = c.strike || '2-3-4';
+                    return { ...c, cost, isElite, maxHp, strike };
+                };
+
+                onMounted(() => {
+                    const savedInv = localStorage.getItem('berserk_inventory_gb');
+                    if (savedInv) inventory.value = JSON.parse(savedInv);
+
+                    fetch('cards.json').then(r => r.json()).then(data => {
+                        cards.value = data.map(enrichCard);
+                    }).catch(() => {
+                        // Резерв на случай отсутствия сети
+                        cards.value = [];
+                    });
+                });
+
+                // Все собранные карты пользователя
+                const myCollectedCards = computed(() => {
+                    return cards.value.filter(c => {
+                        const inv = inventory.value[c.cardId];
+                        return inv && ((inv.normal || 0) + (inv.foil || 0) > 0);
+                    });
+                });
+
+                // Если инвентарь пуст (гость), даем доступ ко всем картам базы для фана
+                const availablePool = computed(() => {
+                    return myCollectedCards.value.length > 0 ? myCollectedCards.value : cards.value;
+                });
+
+                const filteredCollectionForP1 = computed(() => {
+                    const q = p1SearchQuery.value.trim().toLowerCase();
+                    if (!q) return availablePool.value.slice(0, 15);
+                    return availablePool.value.filter(c => c.name.toLowerCase().includes(q) || String(c.number).includes(q));
+                });
+
+                const filteredCollectionForP2 = computed(() => {
+                    const q = p2SearchQuery.value.trim().toLowerCase();
+                    if (!q) return availablePool.value.slice(0, 15);
+                    return availablePool.value.filter(c => c.name.toLowerCase().includes(q) || String(c.number).includes(q));
+                });
+
+                const addToArmy = (playerNum, card) => {
+                    if (playerNum === 1) {
+                        p1Army.value.push(card);
+                    } else {
+                        p2Army.value.push(card);
+                    }
+                };
+
+                // Подсчет золота и серебра отряда 1
+                const p1GoldSpent = computed(() => p1Army.value.reduce((acc, c) => acc + (c.isElite ? c.cost : 0), 0));
+                const p1SilverSpent = computed(() => p1Army.value.reduce((acc, c) => acc + (!c.isElite ? c.cost : 0), 0));
+
+                // Подсчет золота и серебра отряда 2
+                const p2GoldSpent = computed(() => p2Army.value.reduce((acc, c) => acc + (c.isElite ? c.cost : 0), 0));
+                const p2SilverSpent = computed(() => p2Army.value.reduce((acc, c) => acc + (!c.isElite ? c.cost : 0), 0));
+
+                const p1Gold = computed(() => p1GoldSpent.value);
+                const p1Silver = computed(() => p1SilverSpent.value);
+                const p2Gold = computed(() => p2GoldSpent.value);
+                const p2Silver = computed(() => p2SilverSpent.value);
+
+                // Запуск боя
+                const startBattle = () => {
+                    if (p1Army.value.length === 0 && p2Army.value.length === 0) {
+                        alert('Сначала наберите хотя бы по несколько карт в оба отряда!');
+                        return;
+                    }
+                    battleP1.value = p1Army.value.map(c => ({
+                        ...c,
+                        hp: c.maxHp,
+                        isExhausted: false
+                    }));
+                    battleP2.value = p2Army.value.map(c => ({
+                        ...c,
+                        hp: c.maxHp,
+                        isExhausted: false
+                    }));
+                    activeTab.value = 'battle';
+                };
+
+                const resetBattleHp = () => {
+                    battleP1.value.forEach(c => { c.hp = c.maxHp; c.isExhausted = false; });
+                    battleP2.value.forEach(c => { c.hp = c.maxHp; c.isExhausted = false; });
+                };
+
+                const adjustHp = (bCard, delta) => {
+                    bCard.hp = Math.max(0, bCard.hp + delta);
+                };
+
+                // Кубик
+                const rollRandomDice = () => {
+                    diceVal.value = Math.floor(Math.random() * 6) + 1;
+                };
+
+                const strikeResultText = computed(() => {
+                    const parts = strikeInput.value.split(/[-–\s]+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+                    if (parts.length < 3) return 'Введите три цифры через дефис (например: 2-3-4)';
+                    
+                    const [low, mid, high] = parts;
+                    const roll = diceVal.value;
+
+                    if (roll <= 2) {
+                        return `💥 Слабый удар (кубик ${roll}): нанесено ${low} ран!`;
+                    } else if (roll <= 4) {
+                        return `⚡ Средний удар (кубик ${roll}): нанесено ${mid} ран!`;
+                    } else {
+                        return `🔥 КРИТ / Сильный удар (кубик ${roll}): нанесено ${high} ран!`;
+                    }
+                });
+
+                const filteredGlossary = computed(() => {
+                    const q = glossarySearch.value.trim().toLowerCase();
+                    if (!q) return glossaryItems.value;
+                    return glossaryItems.value.filter(i => i.title.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
+                });
+
+                return {
+                    activeTab, gameMode, maxGold, maxSilver, maxGoldSecond, maxSilverSecond,
+                    p1Army, p2Army, p1SearchQuery, p2SearchQuery,
+                    filteredCollectionForP1, filteredCollectionForP2, addToArmy,
+                    p1GoldSpent, p1SilverSpent, p2GoldSpent, p2SilverSpent,
+                    p1Gold, p1Silver, p2Gold, p2Silver, startBattle,
+                    battleP1, battleP2, resetBattleHp, adjustHp,
+                    strikeInput, diceVal, rollRandomDice, strikeResultText,
+                    glossarySearch, filteredGlossary
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
