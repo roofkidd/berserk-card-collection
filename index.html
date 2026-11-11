@@ -6,12 +6,13 @@
     <title>Берсерк: Альбом Коллекционера</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-main: #121110;
-            --bg-panel: rgba(26, 24, 22, 0.88);
-            --bg-slot: rgba(15, 14, 13, 0.78);
+            --bg-panel: rgba(26, 24, 22, 0.90);
+            --bg-slot: rgba(15, 14, 13, 0.82);
             --border-color: rgba(168, 139, 98, 0.25);
             --border-hover: rgba(201, 166, 107, 0.65);
             --text-main: #eae6df;
@@ -34,7 +35,7 @@
         .ui-panel {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(14px);
         }
 
         .ui-input {
@@ -66,31 +67,17 @@
         }
 
         /* 3D сцена для перелистывания листа альбома */
-        .binder-stage {
-            perspective: 2200px;
-        }
+        .binder-stage { perspective: 2200px; }
 
         .flip-next-enter-active, .flip-next-leave-active,
         .flip-prev-enter-active, .flip-prev-leave-active {
             transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
             transform-style: preserve-3d;
         }
-        .flip-next-leave-to {
-            opacity: 0;
-            transform: translateX(-60px) rotateY(-22deg) scale(0.96);
-        }
-        .flip-next-enter-from {
-            opacity: 0;
-            transform: translateX(60px) rotateY(22deg) scale(0.96);
-        }
-        .flip-prev-leave-to {
-            opacity: 0;
-            transform: translateX(60px) rotateY(22deg) scale(0.96);
-        }
-        .flip-prev-enter-from {
-            opacity: 0;
-            transform: translateX(-60px) rotateY(-22deg) scale(0.96);
-        }
+        .flip-next-leave-to { opacity: 0; transform: translateX(-60px) rotateY(-22deg) scale(0.96); }
+        .flip-next-enter-from { opacity: 0; transform: translateX(60px) rotateY(22deg) scale(0.96); }
+        .flip-prev-leave-to { opacity: 0; transform: translateX(60px) rotateY(22deg) scale(0.96); }
+        .flip-prev-enter-from { opacity: 0; transform: translateX(-60px) rotateY(-22deg) scale(0.96); }
 
         /* Слот карты в альбоме */
         .card-slot {
@@ -105,21 +92,15 @@
         }
 
         /* Свечение значков редкости */
-        .rarity-badge {
-            transition: transform 0.2s ease, filter 0.2s ease;
-        }
-        .rarity-badge:hover {
-            transform: scale(1.15);
-        }
+        .rarity-badge { transition: transform 0.2s ease, filter 0.2s ease; }
+        .rarity-badge:hover { transform: scale(1.15); }
         .rarity-common { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)); }
         .rarity-uncommon { filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.35)); }
         .rarity-rare { filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.45)); }
         .rarity-ultra { filter: drop-shadow(0 0 9px rgba(244, 63, 94, 0.6)); }
 
         /* Интерактивная 3D-карта в модалке */
-        .inspect-stage {
-            perspective: 1200px;
-        }
+        .inspect-stage { perspective: 1200px; }
         .inspect-card {
             transform-style: preserve-3d;
             will-change: transform;
@@ -170,10 +151,7 @@
             transition: opacity 0.25s ease;
         }
 
-        .is-foil .foil-shader {
-            opacity: 0.85;
-        }
-
+        .is-foil .foil-shader { opacity: 0.85; }
         .slot-foil .foil-shader {
             opacity: 0.65;
             animation: idle-holo 5s ease-in-out infinite alternate;
@@ -182,16 +160,53 @@
             0% { background-position: 0% 20%, center; }
             100% { background-position: 100% 80%, center; }
         }
+
+        /* Кастомный скроллбар для чата */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 166, 107, 0.35); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 166, 107, 0.6); }
     </style>
 </head>
 <body class="min-h-screen pb-14">
     <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
+
+        <!-- БАННЕР ПРОСМОТРА ЧУЖОГО АЛЬБОМА -->
+        <div v-if="viewingFriend" 
+             class="mb-5 p-4 rounded-2xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/80 via-stone-900/90 to-amber-950/80 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5 text-center sm:text-left">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-xl">
+                    👁️
+                </div>
+                <div>
+                    <div class="text-xs uppercase tracking-widest text-amber-300/90 font-bold">Режим гостевого осмотра</div>
+                    <div class="text-base sm:text-lg font-bold text-white">
+                        Альбом коллекционера: <span class="text-amber-400 font-fantasy tracking-wide">{{ viewingFriend.username }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button @click="filterMode = 'TRADE_NEEDED'; resetPage()" 
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold transition border"
+                        :class="filterMode === 'TRADE_NEEDED' ? 'bg-amber-400 text-stone-950 border-amber-300' : 'bg-stone-900/80 text-amber-300 border-amber-500/40 hover:border-amber-400'">
+                    🎯 Показать карты, которых нет у меня ({{ tradeNeededCount }})
+                </button>
+                <button @click="openChatWith(viewingFriend)" 
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition">
+                    💬 Написать {{ viewingFriend.username }}
+                </button>
+                <button @click="exitFriendView" 
+                        class="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition">
+                    ← Вернуться в мой альбом
+                </button>
+            </div>
+        </div>
         
         <!-- Шапка -->
         <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-5 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
             <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
                 <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
-                     class="h-24 sm:h-28 md:h-32 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
+                     class="h-20 sm:h-28 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
                 <div>
                     <h1 class="font-fantasy text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-wider" style="color: var(--accent-bright)">
                         АЛЬБОМ КОЛЛЕКЦИОНЕРА
@@ -206,17 +221,40 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center justify-center gap-4 w-full lg:w-auto">
+            <div class="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto">
                 <!-- Прогресс-бар выбранного выпуска -->
-                <div class="w-full sm:w-64 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                <div class="w-full sm:w-48 h-3.5 rounded-full overflow-hidden p-0.5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                     <div class="h-full rounded-full transition-all duration-500"
                          style="background: linear-gradient(90deg, #9c7a44, #10b981)"
                          :style="{ width: activeSetPercent + '%' }"></div>
                 </div>
 
+                <!-- Кнопка Друзья и Чат -->
+                <button @click="openSocialDrawer" 
+                        class="ui-input px-4 py-2 rounded-xl text-xs font-bold hover:border-amber-500/60 transition flex items-center gap-2 relative">
+                    <span>👥 Друзья и Чат</span>
+                    <span v-if="unreadCount > 0" 
+                          class="px-1.5 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full animate-pulse">
+                        {{ unreadCount }}
+                    </span>
+                </button>
+
+                <!-- Кнопка Профиля / Облака -->
+                <button v-if="currentUser" @click="showAuthModal = true" 
+                        class="ui-input px-4 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition flex items-center gap-2">
+                    <span class="text-amber-400 font-bold">👤 {{ currentProfile?.username || 'Профиль' }}</span>
+                    <span v-if="syncState === 'saving'" class="text-amber-300 text-[11px]">⏳</span>
+                    <span v-else-if="syncState === 'saved'" class="text-emerald-400 text-[11px]" title="Синхронизировано с облаком">☁️✓</span>
+                </button>
+                <button v-else @click="showAuthModal = true" 
+                        class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg"
+                        style="background: var(--accent); color: #121110">
+                    <span>🔑 Войти / Профиль</span>
+                </button>
+
                 <!-- Кнопка переноса/бэкапа коллекции -->
-                <button @click="showSyncModal = true" class="ui-input px-4 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-2">
-                    <span>💾 Бэкап / Перенос</span>
+                <button @click="showSyncModal = true" class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition whitespace-nowrap flex items-center gap-1.5" title="Ручной JSON Бэкап">
+                    <span>💾 Бэкап</span>
                 </button>
             </div>
         </header>
@@ -288,6 +326,8 @@
                         <option value="OWNED">Собранные</option>
                         <option value="MISSING">Недостающие</option>
                         <option value="FOIL">Только фойловые ✨</option>
+                        <option v-if="viewingFriend" value="TRADE_NEEDED">🎯 Есть у друга, нет у меня ({{ tradeNeededCount }})</option>
+                        <option v-if="viewingFriend" value="FRIEND_DUPLICATES">📦 Дубликаты друга (2+ шт.)</option>
                     </select>
                 </div>
 
@@ -352,7 +392,7 @@
             </div>
 
             <transition :name="pageDirection" mode="out-in" v-else>
-                <div :key="currentPage + '_' + selectedSet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
+                <div :key="currentPage + '_' + selectedSet + '_' + (viewingFriend?.id || 'me')" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
                     <div v-for="card in paginatedCards" :key="card.cardId" 
                          class="card-slot rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer group"
                          @click="openInspect(card)">
@@ -366,6 +406,11 @@
                                       style="background: rgba(201,166,107,0.16); color: var(--accent)"
                                       :title="card.set">
                                     {{ getSetShortName(card.set) }}
+                                </span>
+                                <!-- Бейдж "Нужна мне!" при осмотре друга -->
+                                <span v-if="viewingFriend && getTotal(card.cardId) > 0 && getOwnTotal(card.cardId) === 0"
+                                      class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[10px] font-bold">
+                                    🎯 Нет у меня
                                 </span>
                             </div>
                             <span class="px-2 py-0.5 rounded-md text-[11px] font-medium" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
@@ -383,7 +428,7 @@
                             <div class="foil-shader"></div>
                         </div>
 
-                        <!-- Информационный блок под картой: Слева текст, Справа значок редкости -->
+                        <!-- Информационный блок под картой -->
                         <div class="mt-3 px-1.5 flex items-center justify-between gap-2 min-h-[54px]">
                             <div class="min-w-0 flex-1 text-left">
                                 <div class="text-base font-bold truncate leading-tight" :title="card.name">{{ card.name }}</div>
@@ -412,8 +457,8 @@
                             </button>
                         </div>
 
-                        <!-- Счетчики обычных и фойловых карт -->
-                        <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
+                        <!-- Нижняя панель слота: Свои счетчики ИЛИ Инфо друга + Запрос в чат -->
+                        <div v-if="!viewingFriend" class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
                             <!-- Обычные -->
                             <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                                 <button @click="updateCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
@@ -432,6 +477,20 @@
                                 </span>
                                 <button @click="updateFoilCount(card.cardId, 1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">+</button>
                             </div>
+                        </div>
+
+                        <!-- Режим осмотра друга: сколько у него и кнопка "Спросить в чате" -->
+                        <div v-else class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
+                            <div class="text-xs flex items-center gap-2">
+                                <span class="px-2 py-1 rounded-lg font-bold" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                                    У друга: <strong :class="getCount(card.cardId) > 0 ? 'text-emerald-400' : 'opacity-40'">{{ getCount(card.cardId) }}</strong>
+                                    <span v-if="getFoilCount(card.cardId) > 0" class="text-amber-400 ml-1">+ {{ getFoilCount(card.cardId) }}✨</span>
+                                </span>
+                            </div>
+                            <button @click="askFriendAboutCard(card)" 
+                                    class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 transition flex items-center gap-1">
+                                <span>💬 Спросить</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -458,13 +517,12 @@
             </div>
         </div>
 
-        <!-- Модальное окно 3D-инспектора -->
+        <!-- МОДАЛЬНОЕ ОКНО 3D-ИНСПЕКТОРА -->
         <div v-if="activeCard" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="closeInspect">
             <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl flex flex-col items-center relative" @click.stop>
                 
                 <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
 
-                <!-- Верхняя плашка с выпуском, номером и иконкой редкости -->
                 <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-1.5" style="color: var(--accent)">
                     <span>{{ activeCard.set }} #{{ activeCard.number }}</span>
                     <span>•</span>
@@ -474,7 +532,6 @@
 
                 <h3 class="font-fantasy text-2xl sm:text-3xl font-bold text-center mb-1">{{ activeCard.name }}</h3>
                 
-                <!-- Метаданные и кликабельный художник -->
                 <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-5" style="color: var(--text-muted)">
                     <span>{{ activeCard.element }}</span>
                     <span v-if="formatCardSubtitle(activeCard)" style="color: var(--accent)">• {{ formatCardSubtitle(activeCard) }}</span>
@@ -482,8 +539,7 @@
                     <span>•</span>
                     <button @click="selectArtistFilter(activeCard.artist)" 
                             class="font-semibold underline decoration-dotted hover:text-amber-400 transition flex items-center gap-1"
-                            style="color: var(--accent-bright)"
-                            title="Отфильтровать альбом по этому художнику">
+                            style="color: var(--accent-bright)">
                         🎨 Худ: {{ activeCard.artist }} 🔍
                     </button>
                 </div>
@@ -504,11 +560,11 @@
                 </div>
 
                 <p class="text-xs mt-4 mb-5 text-center" style="color: var(--text-muted)">
-                    💡 Водите курсором по карте для 3D-наклона и игры бликов • Клик по карте переключает предпросмотр фойлы ✨
+                    💡 Водите курсором по карте для 3D-наклона • Клик по карте переключает предпросмотр фойлы ✨
                 </p>
 
-                <!-- Управление количеством в инспекторе -->
-                <div class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                <!-- Управление количеством в инспекторе (Свой альбом) -->
+                <div v-if="!viewingFriend" class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                     <div class="flex flex-col items-center">
                         <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Обычная версия</span>
                         <div class="flex items-center gap-4">
@@ -528,6 +584,277 @@
                     </div>
                 </div>
 
+                <!-- Панель в инспекторе при осмотре друга -->
+                <div v-else class="w-full p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                    <div class="text-sm">
+                        У <strong>{{ viewingFriend.username }}</strong>: 
+                        <span class="text-emerald-400 font-bold ml-1">{{ getCount(activeCard.cardId) }} обычн.</span> / 
+                        <span class="text-amber-400 font-bold">{{ getFoilCount(activeCard.cardId) }} фойл ✨</span>
+                        <div class="text-xs opacity-70 mt-0.5">В вашей коллекции: {{ getOwnTotal(activeCard.cardId) }} шт.</div>
+                    </div>
+                    <button @click="askFriendAboutCard(activeCard)" 
+                            class="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition">
+                        💬 Спросить карту в чате
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ПРИВЕТСТВЕННОЕ ОКНО ВХОДА / ПРОФИЛЯ -->
+        <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" @click="closeAuthModal">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative" @click.stop>
+                <button @click="closeAuthModal" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
+
+                <!-- Если пользователь УЖЕ авторизован -->
+                <div v-if="currentUser">
+                    <div class="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-1">Облачный профиль активен</div>
+                    <h3 class="font-fantasy text-2xl font-bold mb-4" style="color: var(--accent-bright)">
+                        👤 {{ currentProfile?.username }}
+                    </h3>
+                    <div class="p-4 rounded-2xl mb-5 text-xs space-y-2" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Статус облака:</span>
+                            <span class="text-emerald-400 font-bold">☁️ Синхронизировано</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Уникальных карт в базе:</span>
+                            <span class="font-bold">{{ totalCollectedAll }} шт.</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Никнейм для друзей:</span>
+                            <span class="text-amber-300 font-mono font-bold">{{ currentProfile?.username }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button @click="forceCloudSync" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
+                            🔄 Сохранить в облако сейчас
+                        </button>
+                        <button @click="handleLogout" class="py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition">
+                            Выйти
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Если пользователь НЕ авторизован (Вход / Регистрация) -->
+                <div v-else>
+                    <div class="text-center mb-5">
+                        <h3 class="font-fantasy text-2xl font-bold" style="color: var(--accent-bright)">Облачный Альбом</h3>
+                        <p class="text-xs mt-1" style="color: var(--text-muted)">
+                            Сохраняйте коллекцию в облаке, открывайте её с телефона и обменивайтесь картами с друзьями
+                        </p>
+                    </div>
+
+                    <!-- Переключатель Вход / Новый профиль (Защита от опечаток) -->
+                    <div class="grid grid-cols-2 gap-2 p-1 rounded-xl mb-5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <button @click="authTab = 'login'; authError = ''" 
+                                class="py-2 rounded-lg text-xs font-bold transition"
+                                :style="authTab === 'login' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Войти в профиль
+                        </button>
+                        <button @click="authTab = 'register'; authError = ''" 
+                                class="py-2 rounded-lg text-xs font-bold transition"
+                                :style="authTab === 'register' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Создать профиль
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="submitAuth" class="space-y-3.5">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">Ваш Никнейм (на англ. или рус.):</label>
+                            <input type="text" v-model="authUsername" required placeholder="Например: Gleb" 
+                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">ПИН-код или пароль (минимум 6 символов):</label>
+                            <input type="password" v-model="authPin" required minlength="6" placeholder="••••••" 
+                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+                        </div>
+
+                        <p v-if="authError" class="text-xs text-rose-400 font-semibold text-center bg-rose-950/40 border border-rose-500/30 rounded-xl p-2.5">
+                            {{ authError }}
+                        </p>
+
+                        <button type="submit" :disabled="authLoading" 
+                                class="w-full py-3 rounded-xl text-sm font-extrabold transition shadow-lg disabled:opacity-50"
+                                style="background: var(--accent); color: #121110">
+                            {{ authLoading ? '⏳ Подключение...' : (authTab === 'login' ? '🚀 Войти в коллекцию' : '✨ Создать профиль и сохранить карты') }}
+                        </button>
+                    </form>
+
+                    <div class="mt-5 pt-4 text-center" style="border-top: 1px solid var(--border-color)">
+                        <button @click="dismissWelcomeAsGuest" class="text-xs hover:underline" style="color: var(--text-muted)">
+                            Продолжить как гость (только в памяти этого браузера) →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- БОКОВАЯ ПАНЕЛЬ ДРУЗЕЙ И ЖИВОГО ЧАТА -->
+        <div v-if="showSocialDrawer" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex justify-end" @click="showSocialDrawer = false">
+            <div class="ui-panel w-full max-w-2xl h-full shadow-2xl flex flex-col justify-between overflow-hidden" @click.stop>
+                
+                <!-- Шапка соц-панели -->
+                <div class="p-5 flex items-center justify-between" style="border-bottom: 1px solid var(--border-color)">
+                    <div>
+                        <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">👥 Друзья и Обмен картами</h3>
+                        <p class="text-xs" style="color: var(--text-muted)">
+                            {{ currentUser ? 'Ваш ник: ' + (currentProfile?.username || '') : 'Войдите в профиль, чтобы добавлять друзей и писать в чат' }}
+                        </p>
+                    </div>
+                    <button @click="showSocialDrawer = false" class="ui-input w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold">×</button>
+                </div>
+
+                <!-- Если не залогинен -->
+                <div v-if="!currentUser" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                    <div class="text-4xl mb-3">🔒</div>
+                    <p class="text-base font-bold mb-2">Социальные функции доступны после входа</p>
+                    <p class="text-xs mb-5 max-w-sm" style="color: var(--text-muted)">
+                        Создайте бесплатный профиль за 5 секунд по Нику и ПИНу, чтобы находить друзей, смотреть их альбомы и отправлять запросы на карты.
+                    </p>
+                    <button @click="showSocialDrawer = false; showAuthModal = true" 
+                            class="px-6 py-2.5 rounded-xl text-xs font-bold" style="background: var(--accent); color: #121110">
+                        Войти или создать профиль
+                    </button>
+                </div>
+
+                <!-- Основной контент: Слева список друзей, Справа чат -->
+                <div v-else class="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
+                    
+                    <!-- Левая колонка: Поиск и Список друзей (5 колонок) -->
+                    <div class="md:col-span-5 flex flex-col h-full overflow-hidden" style="border-right: 1px solid var(--border-color)">
+                        <!-- Добавление друга по нику -->
+                        <div class="p-3.5" style="border-bottom: 1px solid var(--border-color)">
+                            <label class="block text-[11px] font-semibold mb-1.5" style="color: var(--text-muted)">Добавить коллекционера по нику:</label>
+                            <form @submit.prevent="addFriendByUsername" class="flex gap-1.5">
+                                <input type="text" v-model="friendSearchInput" placeholder="Ник друга..." 
+                                       class="ui-input flex-1 rounded-xl px-3 py-1.5 text-xs">
+                                <button type="submit" class="px-3 py-1.5 rounded-xl text-xs font-bold" style="background: var(--accent); color: #121110">
+                                    + Добавить
+                                </button>
+                            </form>
+                            <p v-if="friendSearchMsg" class="text-[11px] mt-1.5 font-semibold" :class="friendSearchError ? 'text-rose-400' : 'text-emerald-400'">
+                                {{ friendSearchMsg }}
+                            </p>
+                        </div>
+
+                        <!-- Список друзей -->
+                        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+                            <div v-if="friendsList.length === 0" class="text-center py-10 px-3 text-xs" style="color: var(--text-muted)">
+                                Пока нет добавленных друзей. Введите ник друга выше!
+                            </div>
+
+                            <div v-for="fr in friendsList" :key="fr.id" 
+                                 class="p-3 rounded-2xl transition cursor-pointer border"
+                                 :class="activeChatFriend?.id === fr.id ? 'border-amber-500/70 bg-amber-500/10' : 'border-white/10 bg-black/25 hover:border-white/25'"
+                                 @click="selectChatFriend(fr)">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="font-bold text-sm flex items-center gap-1.5">
+                                        <span>👤 {{ fr.username }}</span>
+                                        <span v-if="unreadByFriend[fr.id]" class="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px]">
+                                            {{ unreadByFriend[fr.id] }}
+                                        </span>
+                                    </div>
+                                    <span class="text-[11px] text-emerald-400 font-semibold">
+                                        🃏 {{ countFriendCards(fr.inventory) }} карт
+                                    </span>
+                                </div>
+
+                                <div class="flex gap-1.5">
+                                    <button @click.stop="inspectFriendCollection(fr)" 
+                                            class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/30 transition">
+                                        👁️ Смотреть альбом
+                                    </button>
+                                    <button @click.stop="selectChatFriend(fr)" 
+                                            class="py-1.5 px-2.5 rounded-lg text-[11px] font-bold ui-input hover:border-amber-400 transition">
+                                        💬 Чат
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Правая колонка: Диалог с выбранным другом (7 колонок) -->
+                    <div class="md:col-span-7 flex flex-col h-full overflow-hidden bg-black/20">
+                        <div v-if="!activeChatFriend" class="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs" style="color: var(--text-muted)">
+                            <div class="text-3xl mb-2">💬</div>
+                            Выберите друга слева, чтобы открыть чат или посмотреть его карты
+                        </div>
+
+                        <template v-else>
+                            <!-- Шапка активного диалога -->
+                            <div class="p-3.5 flex items-center justify-between bg-black/30" style="border-bottom: 1px solid var(--border-color)">
+                                <div class="font-bold text-sm">
+                                    Диалог с <span class="text-amber-400">{{ activeChatFriend.username }}</span>
+                                </div>
+                                <button @click="inspectFriendCollection(activeChatFriend)" 
+                                        class="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
+                                    👁️ Открыть его альбом
+                                </button>
+                            </div>
+
+                            <!-- Лента сообщений -->
+                            <div ref="chatScrollBox" class="flex-1 overflow-y-auto p-4 space-y-3">
+                                <div v-if="activeConversation.length === 0" class="text-center py-12 text-xs" style="color: var(--text-muted)">
+                                    Напишите приветствие или нажмите «💬 Спросить» на любой карте в альбоме {{ activeChatFriend.username }}!
+                                </div>
+
+                                <div v-for="msg in activeConversation" :key="msg.id"
+                                     class="flex flex-col"
+                                     :class="msg.sender_id === currentUser.id ? 'items-end' : 'items-start'">
+                                    
+                                    <div class="max-w-[85%] rounded-2xl p-3 text-xs space-y-2"
+                                         :class="msg.sender_id === currentUser.id 
+                                            ? 'bg-amber-600/25 border border-amber-500/40 text-stone-100 rounded-br-none' 
+                                            : 'bg-stone-800/90 border border-stone-700 text-stone-200 rounded-bl-none'">
+                                        
+                                        <!-- Если к сообщению прикреплена карта -->
+                                        <div v-if="msg.card_id && getCardById(msg.card_id)" 
+                                             @click="openInspectFromChat(msg.card_id)"
+                                             class="flex items-center gap-2.5 p-2 rounded-xl bg-black/45 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition">
+                                            <img :src="getCardById(msg.card_id).imageUrl" class="w-10 h-14 object-cover rounded-md shrink-0">
+                                            <div class="min-w-0">
+                                                <div class="text-[10px] text-amber-400 font-bold">
+                                                    {{ getCardById(msg.card_id).set }} #{{ getCardById(msg.card_id).number }}
+                                                </div>
+                                                <div class="font-bold text-xs truncate">{{ getCardById(msg.card_id).name }}</div>
+                                                <div class="text-[10px] opacity-75">🔍 Кликните для 3D-осмотра</div>
+                                            </div>
+                                        </div>
+
+                                        <p class="leading-relaxed whitespace-pre-wrap">{{ msg.content }}</p>
+                                    </div>
+
+                                    <span class="text-[10px] opacity-40 mt-1 px-1">
+                                        {{ formatTime(msg.created_at) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Плашка прикрепленной к сообщению карты -->
+                            <div v-if="attachedCard" class="px-3.5 py-2 bg-amber-950/60 border-t border-amber-500/40 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2 text-xs truncate">
+                                    <span>🃏 Прикреплена карта:</span>
+                                    <strong class="text-amber-300 truncate">#{{ attachedCard.number }} {{ attachedCard.name }}</strong>
+                                </div>
+                                <button @click="attachedCard = null" class="text-xs font-bold text-rose-400 hover:underline">Убрать ×</button>
+                            </div>
+
+                            <!-- Поле ввода сообщения -->
+                            <form @submit.prevent="sendChatMessage" class="p-3 flex gap-2 bg-black/40" style="border-top: 1px solid var(--border-color)">
+                                <input type="text" v-model="chatInputText" placeholder="Напишите сообщение..." 
+                                       class="ui-input flex-1 rounded-xl px-3.5 py-2 text-xs">
+                                <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
+                                    Отправить ➤
+                                </button>
+                            </form>
+                        </template>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -536,12 +863,11 @@
             <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative" @click.stop>
                 <button @click="showSyncModal = false" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
                 
-                <h3 class="font-fantasy text-xl font-bold mb-2" style="color: var(--accent-bright)">Бэкап и перенос коллекции</h3>
+                <h3 class="font-fantasy text-xl font-bold mb-2" style="color: var(--accent-bright)">Локальный JSON-бэкап коллекции</h3>
                 <p class="text-xs mb-4" style="color: var(--text-muted)">
-                    Скопируйте код ниже на старом устройстве и вставьте на новом, чтобы мгновенно перенести все отмеченные карты и фойлу по всем выпускам.
+                    Резервное копирование коллекции в виде текста или файла .json.
                 </p>
 
-                <label class="block text-xs font-semibold mb-1.5">Ваш код коллекции (JSON):</label>
                 <textarea v-model="syncCodeText" rows="5" 
                           class="ui-input w-full rounded-xl p-3 text-xs font-mono mb-4"
                           placeholder='{"100791":{"normal":1,"foil":0}}'></textarea>
@@ -549,7 +875,7 @@
                 <div class="flex flex-wrap gap-3">
                     <button @click="copySyncCode" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold transition"
                             style="background: var(--accent); color: #121110">
-                        📋 Скопировать мой код
+                        📋 Скопировать код
                     </button>
                     <button @click="applySyncCode" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">
                         📥 Загрузить из кода
@@ -565,12 +891,55 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, watch, onMounted, onUnmounted } = Vue;
+        const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
+
+        // ==========================================
+        // ПОДКЛЮЧЕНИЕ К SUPABASE
+        // ==========================================
+        const SUPABASE_URL = 'https://odmwzumulpxjcrzhjiig.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_SffKX4DXsjrTYD-CCv-TSQ_i235kUG9';
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Превращает любой никнейм (включая русский) в валидный технический email для Supabase Auth
+        const usernameToTechEmail = (username) => {
+            const clean = username.trim().toLowerCase();
+            let hex = '';
+            for (let i = 0; i < clean.length; i++) {
+                hex += clean.charCodeAt(i).toString(16);
+            }
+            return `u_${hex}@berserk.album`;
+        };
 
         createApp({
             setup() {
                 const cards = ref([]);
                 const inventory = ref({});
+
+                // Состояние авторизации и облака
+                const currentUser = ref(null);
+                const currentProfile = ref(null);
+                const showAuthModal = ref(false);
+                const authTab = ref('login');
+                const authUsername = ref('');
+                const authPin = ref('');
+                const authError = ref('');
+                const authLoading = ref(false);
+                const syncState = ref('saved'); // 'saved' | 'saving'
+                let syncTimeout = null;
+
+                // Состояние друзей, чужого альбома и чата
+                const showSocialDrawer = ref(false);
+                const friendsList = ref([]);
+                const viewingFriend = ref(null);
+                const friendSearchInput = ref('');
+                const friendSearchMsg = ref('');
+                const friendSearchError = ref(false);
+
+                const activeChatFriend = ref(null);
+                const messagesList = ref([]);
+                const chatInputText = ref('');
+                const attachedCard = ref(null);
+                const chatScrollBox = ref(null);
 
                 // Официальные иконки редкости
                 const rarityIcons = {
@@ -593,7 +962,7 @@
                     return setName.split(/\s+/).map(w => w[0]).join('').toUpperCase();
                 };
 
-                // Фильтры (включая активный Выпуск)
+                // Фильтры
                 const selectedSet = ref('ALL');
                 const selectedElement = ref('ALL');
                 const selectedRarity = ref('ALL');
@@ -629,6 +998,8 @@
                     }
                 });
 
+                const getCardById = (cid) => cards.value.find(c => c.cardId === cid);
+
                 const formatCardSubtitle = (card) => {
                     const cClass = (card.cardClass || card.class || '').trim();
                     const cType = (card.cardType || '').trim();
@@ -641,14 +1012,12 @@
                     return '';
                 };
 
-                // Авто-нормализация номеров и названий сетов при чтении JSON
                 const sanitizeCards = (rawCards) => {
                     return rawCards.map(c => {
-                        if (c.set && c.set.toLowerCase().includes('сердце роя')) {
-                            c.set = 'Сердце Роя';
-                        } else if (c.set && c.set.toLowerCase().includes('гибель богов')) {
-                            c.set = 'Гибель богов';
-                        }
+                        if (c.set && c.set.toLowerCase().includes('сердце роя')) c.set = 'Сердце Роя';
+                        else if (c.set && c.set.toLowerCase().includes('гибель богов')) c.set = 'Гибель богов';
+                        else if (c.set && c.set.toLowerCase().includes('путь хранителей')) c.set = 'Путь хранителей';
+
                         if (!c.number || c.number === 0) {
                             const url = c.imageUrl || '';
                             const mGb = url.match(/Berserk_GB_cards_(\d+)/i);
@@ -661,8 +1030,471 @@
                     });
                 };
 
+                // ==========================================
+                // РАБОТА С ИНВЕНТАРЕМ (СВОЙ ИЛИ ДРУГА)
+                // ==========================================
+                const activeInventory = computed(() => {
+                    return viewingFriend.value ? (viewingFriend.value.inventory || {}) : inventory.value;
+                });
+
+                const getCount = (id) => activeInventory.value[id]?.normal || 0;
+                const getFoilCount = (id) => activeInventory.value[id]?.foil || 0;
+                const getTotal = (id) => getCount(id) + getFoilCount(id);
+
+                // Собственный инвентарь (для сравнения при осмотре друга)
+                const getOwnTotal = (id) => (inventory.value[id]?.normal || 0) + (inventory.value[id]?.foil || 0);
+
+                const countInventoryKeys = (invObj) => {
+                    if (!invObj) return 0;
+                    return Object.values(invObj).filter(v => (v.normal || 0) + (v.foil || 0) > 0).length;
+                };
+
+                const saveInventoryLocalAndCloud = () => {
+                    localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                    if (currentUser.value) {
+                        syncState.value = 'saving';
+                        clearTimeout(syncTimeout);
+                        syncTimeout = setTimeout(() => {
+                            pushInventoryToCloud();
+                        }, 1000);
+                    }
+                };
+
+                const pushInventoryToCloud = async () => {
+                    if (!currentUser.value) return;
+                    syncState.value = 'saving';
+                    const { error } = await sb
+                        .from('profiles')
+                        .update({
+                            inventory: inventory.value,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', currentUser.value.id);
+                    if (!error) syncState.value = 'saved';
+                };
+
+                const forceCloudSync = async () => {
+                    await pushInventoryToCloud();
+                };
+
+                const updateCount = (id, delta) => {
+                    if (viewingFriend.value) return;
+                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
+                    inventory.value[id].normal = Math.max(0, inventory.value[id].normal + delta);
+                    saveInventoryLocalAndCloud();
+                };
+
+                const updateFoilCount = (id, delta) => {
+                    if (viewingFriend.value) return;
+                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
+                    inventory.value[id].foil = Math.max(0, inventory.value[id].foil + delta);
+                    saveInventoryLocalAndCloud();
+                };
+
+                // ==========================================
+                // АВТОРИЗАЦИЯ И ПРОФИЛЬ SUPABASE
+                // ==========================================
+                const loadUserProfile = async (user) => {
+                    currentUser.value = user;
+                    const { data: prof } = await sb
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (prof) {
+                        currentProfile.value = prof;
+                        const cloudCount = countInventoryKeys(prof.inventory);
+                        const localCount = countInventoryKeys(inventory.value);
+
+                        // Умное слияние: если в облаке есть карты — берем облако; если в облаке пусто, а локально есть — пушим локальные в облако
+                        if (cloudCount > 0 && localCount === 0) {
+                            inventory.value = prof.inventory;
+                            localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                        } else if (localCount > 0 && cloudCount === 0) {
+                            await pushInventoryToCloud();
+                        } else if (cloudCount > 0 && localCount > 0) {
+                            // Объединяем максимумы, чтобы ни одна карта не потерялась
+                            const merged = { ...prof.inventory };
+                            for (const [k, val] of Object.entries(inventory.value)) {
+                                if (!merged[k]) merged[k] = val;
+                                else {
+                                    merged[k] = {
+                                        normal: Math.max(merged[k].normal || 0, val.normal || 0),
+                                        foil: Math.max(merged[k].foil || 0, val.foil || 0)
+                                    };
+                                }
+                            }
+                            inventory.value = merged;
+                            localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                            await pushInventoryToCloud();
+                        }
+
+                        await loadFriendsList();
+                        await loadMessages();
+                        subscribeRealtime();
+                    }
+                };
+
+                const submitAuth = async () => {
+                    authError.value = '';
+                    const cleanName = authUsername.value.trim();
+                    if (cleanName.length < 2) {
+                        authError.value = 'Никнейм должен содержать минимум 2 символа';
+                        return;
+                    }
+                    authLoading.value = true;
+                    const techEmail = usernameToTechEmail(cleanName);
+
+                    try {
+                        if (authTab.value === 'login') {
+                            // Проверяем, существует ли такой профиль (защита от опечаток)
+                            const { data: existingProf } = await sb
+                                .from('profiles')
+                                .select('username')
+                                .eq('username_lower', cleanName.toLowerCase())
+                                .maybeSingle();
+
+                            if (!existingProf) {
+                                authError.value = `Профиль «${cleanName}» не найден. Проверьте ник на опечатки или переключитесь на вкладку «Создать профиль».`;
+                                authLoading.value = false;
+                                return;
+                            }
+
+                            const { data, error } = await sb.auth.signInWithPassword({
+                                email: techEmail,
+                                password: authPin.value
+                            });
+                            if (error) throw new Error('Неверный ПИН-код / пароль');
+
+                            await loadUserProfile(data.user);
+                            showAuthModal.value = false;
+                        } else {
+                            // Регистрация нового профиля
+                            const { data: taken } = await sb
+                                .from('profiles')
+                                .select('id')
+                                .eq('username_lower', cleanName.toLowerCase())
+                                .maybeSingle();
+
+                            if (taken) {
+                                authError.value = `Никнейм «${cleanName}» уже занят. Если это ваш профиль — выберите вкладку «Войти».`;
+                                authLoading.value = false;
+                                return;
+                            }
+
+                            const { data, error } = await sb.auth.signUp({
+                                email: techEmail,
+                                password: authPin.value
+                            });
+                            if (error) throw error;
+
+                            if (data.user) {
+                                const { error: profErr } = await sb.from('profiles').insert({
+                                    id: data.user.id,
+                                    username: cleanName,
+                                    username_lower: cleanName.toLowerCase(),
+                                    inventory: inventory.value
+                                });
+                                if (profErr) throw profErr;
+
+                                await loadUserProfile(data.user);
+                                showAuthModal.value = false;
+                            }
+                        }
+                    } catch (err) {
+                        authError.value = err.message || 'Ошибка авторизации';
+                    } finally {
+                        authLoading.value = false;
+                    }
+                };
+
+                const handleLogout = async () => {
+                    await sb.auth.signOut();
+                    currentUser.value = null;
+                    currentProfile.value = null;
+                    friendsList.value = [];
+                    messagesList.value = [];
+                    viewingFriend.value = null;
+                    showAuthModal.value = false;
+                };
+
+                const dismissWelcomeAsGuest = () => {
+                    localStorage.setItem('berserk_guest_dismissed', 'true');
+                    showAuthModal.value = false;
+                };
+
+                const closeAuthModal = () => {
+                    localStorage.setItem('berserk_guest_dismissed', 'true');
+                    showAuthModal.value = false;
+                };
+
+                // ==========================================
+                // ДРУЗЬЯ И ЧУЖИЕ КОЛЛЕКЦИИ
+                // ==========================================
+                const loadFriendsList = async () => {
+                    if (!currentUser.value) return;
+                    const { data: rels } = await sb
+                        .from('friendships')
+                        .select('user_id, friend_id')
+                        .or(`user_id.eq.${currentUser.value.id},friend_id.eq.${currentUser.value.id}`);
+
+                    if (!rels || rels.length === 0) {
+                        friendsList.value = [];
+                        return;
+                    }
+
+                    const friendIds = new Set();
+                    rels.forEach(r => {
+                        if (r.user_id !== currentUser.value.id) friendIds.add(r.user_id);
+                        if (r.friend_id !== currentUser.value.id) friendIds.add(r.friend_id);
+                    });
+
+                    const { data: profs } = await sb
+                        .from('profiles')
+                        .select('*')
+                        .in('id', Array.from(friendIds));
+
+                    friendsList.value = profs || [];
+                };
+
+                const addFriendByUsername = async () => {
+                    friendSearchMsg.value = '';
+                    friendSearchError.value = false;
+                    const target = friendSearchInput.value.trim();
+                    if (!target || !currentUser.value) return;
+
+                    if (target.toLowerCase() === currentProfile.value?.username_lower) {
+                        friendSearchError.value = true;
+                        friendSearchMsg.value = 'Нельзя добавить самого себя';
+                        return;
+                    }
+
+                    const { data: found } = await sb
+                        .from('profiles')
+                        .select('*')
+                        .eq('username_lower', target.toLowerCase())
+                        .maybeSingle();
+
+                    if (!found) {
+                        friendSearchError.value = true;
+                        friendSearchMsg.value = `Игрок «${target}» не найден`;
+                        return;
+                    }
+
+                    await sb.from('friendships').upsert({
+                        user_id: currentUser.value.id,
+                        friend_id: found.id
+                    }, { onConflict: 'user_id,friend_id' });
+
+                    friendSearchInput.value = '';
+                    friendSearchMsg.value = `✅ ${found.username} добавлен в друзья!`;
+                    await loadFriendsList();
+                    selectChatFriend(found);
+                };
+
+                const countFriendCards = (inv) => countInventoryKeys(inv);
+
+                const inspectFriendCollection = (friend) => {
+                    viewingFriend.value = friend;
+                    showSocialDrawer.value = false;
+                    filterMode.value = 'OWNED';
+                    currentPage.value = 1;
+                };
+
+                const exitFriendView = () => {
+                    viewingFriend.value = null;
+                    if (filterMode.value === 'TRADE_NEEDED' || filterMode.value === 'FRIEND_DUPLICATES') {
+                        filterMode.value = 'ALL';
+                    }
+                    currentPage.value = 1;
+                };
+
+                // Количество карт, которые есть у друга, но отсутствуют у меня
+                const tradeNeededCount = computed(() => {
+                    if (!viewingFriend.value) return 0;
+                    const fInv = viewingFriend.value.inventory || {};
+                    return cardsInActiveSet.value.filter(c => {
+                        const fTotal = (fInv[c.cardId]?.normal || 0) + (fInv[c.cardId]?.foil || 0);
+                        return fTotal > 0 && getOwnTotal(c.cardId) === 0;
+                    }).length;
+                });
+
+                // ==========================================
+                // ЖИВОЙ ЧАТ И ЗАПРОСЫ НА КАРТЫ
+                // ==========================================
+                const loadMessages = async () => {
+                    if (!currentUser.value) return;
+                    const { data } = await sb
+                        .from('messages')
+                        .select('*')
+                        .or(`sender_id.eq.${currentUser.value.id},receiver_id.eq.${currentUser.value.id}`)
+                        .order('created_at', { ascending: true });
+
+                    messagesList.value = data || [];
+                };
+
+                const activeConversation = computed(() => {
+                    if (!activeChatFriend.value || !currentUser.value) return [];
+                    const fId = activeChatFriend.value.id;
+                    const myId = currentUser.value.id;
+                    return messagesList.value.filter(m =>
+                        (m.sender_id === myId && m.receiver_id === fId) ||
+                        (m.sender_id === fId && m.receiver_id === myId)
+                    );
+                });
+
+                const unreadCount = computed(() => {
+                    if (!currentUser.value) return 0;
+                    return messagesList.value.filter(m => m.receiver_id === currentUser.value.id && !m.is_read).length;
+                });
+
+                const unreadByFriend = computed(() => {
+                    const map = {};
+                    if (!currentUser.value) return map;
+                    messagesList.value.forEach(m => {
+                        if (m.receiver_id === currentUser.value.id && !m.is_read) {
+                            map[m.sender_id] = (map[m.sender_id] || 0) + 1;
+                        }
+                    });
+                    return map;
+                });
+
+                const markConversationRead = async (friendId) => {
+                    if (!currentUser.value) return;
+                    const unreadIds = messagesList.value
+                        .filter(m => m.sender_id === friendId && m.receiver_id === currentUser.value.id && !m.is_read)
+                        .map(m => m.id);
+
+                    if (unreadIds.length > 0) {
+                        messagesList.value.forEach(m => {
+                            if (unreadIds.includes(m.id)) m.is_read = true;
+                        });
+                        await sb.from('messages').update({ is_read: true }).in('id', unreadIds);
+                    }
+                };
+
+                const scrollToBottomChat = () => {
+                    nextTick(() => {
+                        if (chatScrollBox.value) {
+                            chatScrollBox.value.scrollTop = chatScrollBox.value.scrollHeight;
+                        }
+                    });
+                };
+
+                const selectChatFriend = async (friend) => {
+                    activeChatFriend.value = friend;
+                    await markConversationRead(friend.id);
+                    scrollToBottomChat();
+                };
+
+                const openSocialDrawer = () => {
+                    showSocialDrawer.value = true;
+                    if (activeChatFriend.value) {
+                        markConversationRead(activeChatFriend.value.id);
+                        scrollToBottomChat();
+                    }
+                };
+
+                const openChatWith = (friend) => {
+                    activeChatFriend.value = friend;
+                    showSocialDrawer.value = true;
+                    markConversationRead(friend.id);
+                    scrollToBottomChat();
+                };
+
+                // Кнопка "💬 Спросить" на карте друга
+                const askFriendAboutCard = (card) => {
+                    if (!viewingFriend.value) return;
+                    activeCard.value = null;
+                    activeChatFriend.value = viewingFriend.value;
+                    attachedCard.value = card;
+                    const fCount = getCount(card.cardId);
+                    const fFoil = getFoilCount(card.cardId);
+                    chatInputText.value = `Привет! Интересует твоя карта «${card.name}» (${card.set} #${card.number}). У тебя отмечено: ${fCount} обычн.${fFoil ? ' и ' + fFoil + ' фойл.' : ''}`;
+                    showSocialDrawer.value = true;
+                    scrollToBottomChat();
+                };
+
+                const sendChatMessage = async () => {
+                    const text = chatInputText.value.trim();
+                    if (!text || !currentUser.value || !activeChatFriend.value) return;
+
+                    const payload = {
+                        sender_id: currentUser.value.id,
+                        receiver_id: activeChatFriend.value.id,
+                        content: text,
+                        card_id: attachedCard.value ? attachedCard.value.cardId : null
+                    };
+
+                    chatInputText.value = '';
+                    attachedCard.value = null;
+
+                    const { data, error } = await sb.from('messages').insert(payload).select().single();
+                    if (!error && data) {
+                        if (!messagesList.value.some(m => m.id === data.id)) {
+                            messagesList.value.push(data);
+                        }
+                        scrollToBottomChat();
+                    }
+                };
+
+                const openInspectFromChat = (cardId) => {
+                    const found = getCardById(cardId);
+                    if (found) {
+                        openInspect(found);
+                    }
+                };
+
+                const formatTime = (iso) => {
+                    if (!iso) return '';
+                    const d = new Date(iso);
+                    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                };
+
+                let realtimeChannel = null;
+                const subscribeRealtime = () => {
+                    if (realtimeChannel) sb.removeChannel(realtimeChannel);
+                    realtimeChannel = sb
+                        .channel('berserk-social-room')
+                        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+                            const msg = payload.new;
+                            if (!currentUser.value) return;
+                            if (msg.sender_id === currentUser.value.id || msg.receiver_id === currentUser.value.id) {
+                                if (!messagesList.value.some(m => m.id === msg.id)) {
+                                    messagesList.value.push(msg);
+                                }
+                                // Если написал кто-то новый, автоматически подгружаем его в список контактов
+                                if (msg.sender_id !== currentUser.value.id && !friendsList.value.some(f => f.id === msg.sender_id)) {
+                                    await sb.from('friendships').upsert({
+                                        user_id: currentUser.value.id,
+                                        friend_id: msg.sender_id
+                                    }, { onConflict: 'user_id,friend_id' });
+                                    await loadFriendsList();
+                                }
+                                if (showSocialDrawer.value && activeChatFriend.value?.id === msg.sender_id) {
+                                    markConversationRead(msg.sender_id);
+                                }
+                                scrollToBottomChat();
+                            }
+                        })
+                        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+                            const updated = payload.new;
+                            const idx = friendsList.value.findIndex(f => f.id === updated.id);
+                            if (idx !== -1) friendsList.value[idx] = updated;
+                            if (viewingFriend.value?.id === updated.id) {
+                                viewingFriend.value = updated;
+                            }
+                        })
+                        .subscribe();
+                };
+
+                // ==========================================
+                // ИНИЦИАЛИЗАЦИЯ ПРИ СТАРТЕ
+                // ==========================================
                 onMounted(async () => {
                     try {
+                        // Анти-кэш параметр, чтобы новые сеты сразу подтягивались без инкогнито
                         const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
                         const data = await res.json();
                         cards.value = sanitizeCards(data);
@@ -676,6 +1508,18 @@
                     const savedSet = localStorage.getItem('berserk_selected_set');
                     if (savedSet) selectedSet.value = savedSet;
 
+                    // Проверяем активную сессию Supabase
+                    const { data: { session } } = await sb.auth.getSession();
+                    if (session?.user) {
+                        await loadUserProfile(session.user);
+                    } else {
+                        // Показываем приветственное окно входа, если гость его еще не закрывал
+                        const dismissed = localStorage.getItem('berserk_guest_dismissed');
+                        if (!dismissed) {
+                            showAuthModal.value = true;
+                        }
+                    }
+
                     window.addEventListener('keydown', handleKeydown);
                 });
 
@@ -688,6 +1532,14 @@
                         if (e.key === 'Escape') closeInspect();
                         return;
                     }
+                    if (showAuthModal.value) {
+                        if (e.key === 'Escape') closeAuthModal();
+                        return;
+                    }
+                    if (showSocialDrawer.value) {
+                        if (e.key === 'Escape') showSocialDrawer.value = false;
+                        return;
+                    }
                     if (showSyncModal.value) {
                         if (e.key === 'Escape') showSyncModal.value = false;
                         return;
@@ -695,26 +1547,6 @@
                     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
                     if (e.key === 'ArrowRight') nextPage();
                     if (e.key === 'ArrowLeft') prevPage();
-                };
-
-                const saveInventory = () => {
-                    localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
-                };
-
-                const getCount = (id) => inventory.value[id]?.normal || 0;
-                const getFoilCount = (id) => inventory.value[id]?.foil || 0;
-                const getTotal = (id) => getCount(id) + getFoilCount(id);
-
-                const updateCount = (id, delta) => {
-                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
-                    inventory.value[id].normal = Math.max(0, inventory.value[id].normal + delta);
-                    saveInventory();
-                };
-
-                const updateFoilCount = (id, delta) => {
-                    if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
-                    inventory.value[id].foil = Math.max(0, inventory.value[id].foil + delta);
-                    saveInventory();
                 };
 
                 // Динамический список всех выпусков в базе и их статистика
@@ -738,7 +1570,6 @@
                     currentPage.value = 1;
                 };
 
-                // Карты в рамках выбранной вкладки сета (для подсчета прогресса в шапке и списка художников)
                 const cardsInActiveSet = computed(() => {
                     if (selectedSet.value === 'ALL') return cards.value;
                     return cards.value.filter(c => c.set === selectedSet.value);
@@ -750,7 +1581,6 @@
                 const activeSetCopies = computed(() => cardsInActiveSet.value.reduce((acc, c) => acc + getTotal(c.cardId), 0));
                 const activeSetPercent = computed(() => activeSetTotal.value ? Math.round((activeSetCollected.value / activeSetTotal.value) * 100) : 0);
 
-                // Список художников обновляется под выбранный сет
                 const availableArtists = computed(() => {
                     const set = new Set();
                     cardsInActiveSet.value.forEach(c => {
@@ -794,11 +1624,21 @@
                         if (filterMode.value === 'OWNED') matchMode = total > 0;
                         if (filterMode.value === 'MISSING') matchMode = total === 0;
                         if (filterMode.value === 'FOIL') matchMode = getFoilCount(card.cardId) > 0;
+                        if (filterMode.value === 'TRADE_NEEDED') matchMode = total > 0 && getOwnTotal(card.cardId) === 0;
+                        if (filterMode.value === 'FRIEND_DUPLICATES') matchMode = total >= 2;
 
                         return matchElem && matchRarity && matchArtist && matchSearch && matchMode;
                     });
 
-                    const setOrder = { 'Гибель богов': 1, 'Сердце Роя': 2 };
+                    const setOrder = {
+                        'Война стихий': 1,
+                        'Нашествие тьмы': 2,
+                        'Семена раздора': 3,
+                        'Ложные боги': 4,
+                        'Путь хранителей': 5,
+                        'Гибель богов': 6,
+                        'Сердце Роя': 7
+                    };
 
                     result.sort((a, b) => {
                         if (sortBy.value === 'number') {
@@ -851,7 +1691,7 @@
                     currentPage.value = 1;
                 };
 
-                // Перенос и бэкап
+                // Ручной перенос и бэкап
                 const copySyncCode = async () => {
                     try {
                         await navigator.clipboard.writeText(syncCodeText.value);
@@ -861,12 +1701,12 @@
                     }
                 };
 
-                const applySyncCode = () => {
+                const applySyncCode = async () => {
                     try {
                         const parsed = JSON.parse(syncCodeText.value);
                         if (typeof parsed === 'object' && parsed !== null) {
                             inventory.value = parsed;
-                            saveInventory();
+                            saveInventoryLocalAndCloud();
                             syncStatusMsg.value = '✅ Коллекция успешно загружена и сохранена!';
                         }
                     } catch {
@@ -928,17 +1768,25 @@
                 }));
 
                 return {
-                    cards, rarityIcons, getRarityIcon, getRarityClass, getSetShortName, formatCardSubtitle,
+                    cards, rarityIcons, getRarityIcon, getRarityClass, getSetShortName, formatCardSubtitle, getCardById,
                     availableSets, setsStats, selectedSet, selectSet,
                     totalCollectedAll, activeSetTotal, activeSetCollected, activeSetCopies, activeSetPercent,
                     selectedElement, selectedRarity, selectedArtist, filterMode, sortBy, searchQuery,
                     currentPage, pageDirection, totalPages, paginatedCards, filteredCards,
                     availableArtists, selectArtistFilter, toggleRarityFilter,
-                    getCount, getFoilCount, getTotal, updateCount, updateFoilCount,
+                    getCount, getFoilCount, getTotal, getOwnTotal, updateCount, updateFoilCount,
                     prevPage, nextPage, resetPage, resetFilters,
                     activeCard, previewFoil, openInspect, closeInspect,
                     onCardMouseMove, onCardMouseLeave, inspectCardStyle,
-                    showSyncModal, syncCodeText, syncStatusMsg, copySyncCode, applySyncCode, downloadBackupFile
+                    showSyncModal, syncCodeText, syncStatusMsg, copySyncCode, applySyncCode, downloadBackupFile,
+                    // Auth & Cloud
+                    currentUser, currentProfile, showAuthModal, authTab, authUsername, authPin, authError, authLoading,
+                    syncState, submitAuth, handleLogout, dismissWelcomeAsGuest, closeAuthModal, forceCloudSync,
+                    // Friends & Chat
+                    showSocialDrawer, openSocialDrawer, friendsList, viewingFriend, friendSearchInput, friendSearchMsg, friendSearchError,
+                    addFriendByUsername, countFriendCards, inspectFriendCollection, exitFriendView, tradeNeededCount,
+                    activeChatFriend, activeConversation, unreadCount, unreadByFriend, selectChatFriend, openChatWith,
+                    chatInputText, attachedCard, chatScrollBox, askFriendAboutCard, sendChatMessage, openInspectFromChat, formatTime
                 };
             }
         }).mount('#app');
