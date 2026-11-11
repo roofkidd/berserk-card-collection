@@ -104,10 +104,11 @@
         .inspect-card {
             transform-style: preserve-3d;
             will-change: transform;
+            touch-action: none;
             box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.75), 0 0 25px rgba(201, 166, 107, 0.15);
         }
 
-        /* Световой блик от курсора (Glare) */
+        /* Световой блик от курсора / пальца (Glare) */
         .card-glare {
             position: absolute;
             inset: 0;
@@ -185,11 +186,11 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2.5">
+            <div class="flex flex-wrap items-center justify-center gap-2.5">
                 <button @click="filterMode = 'TRADE_NEEDED'; resetPage()" 
                         class="px-3.5 py-2 rounded-xl text-xs font-bold transition border"
                         :class="filterMode === 'TRADE_NEEDED' ? 'bg-amber-400 text-stone-950 border-amber-300' : 'bg-stone-900/80 text-amber-300 border-amber-500/40 hover:border-amber-400'">
-                    🎯 Показать карты, которых нет у меня ({{ tradeNeededCount }})
+                    🎯 Есть у него, нет у меня ({{ tradeNeededCount }})
                 </button>
                 <button @click="openChatWith(viewingFriend)" 
                         class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition">
@@ -326,6 +327,10 @@
                         <option value="OWNED">Собранные</option>
                         <option value="MISSING">Недостающие</option>
                         <option value="FOIL">Только фойловые ✨</option>
+                        <option value="WISHLIST">🔔 В розыске ({{ activeWishlistCount }})</option>
+                        <option v-if="!viewingFriend && friendsList.length > 0" value="WANTED_BY_FRIENDS">
+                            🎁 Ищут друзья ({{ wantedByFriendsCount }})
+                        </option>
                         <option v-if="viewingFriend" value="TRADE_NEEDED">🎯 Есть у друга, нет у меня ({{ tradeNeededCount }})</option>
                         <option v-if="viewingFriend" value="FRIEND_DUPLICATES">📦 Дубликаты друга (2+ шт.)</option>
                     </select>
@@ -397,9 +402,9 @@
                          class="card-slot rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer group"
                          @click="openInspect(card)">
                          
-                        <!-- Верхняя строка слота: Номер (+ бейдж сета) и Стихия -->
-                        <div class="w-full flex justify-between items-center text-xs mb-2 px-1">
-                            <div class="flex items-center gap-1.5">
+                        <!-- Верхняя строка слота: Номер, бейджи розыска друзей и Стихия -->
+                        <div class="w-full flex justify-between items-center text-xs mb-2 px-1 gap-1">
+                            <div class="flex items-center gap-1.5 flex-wrap">
                                 <span class="font-bold text-sm" style="color: var(--accent-bright)">#{{ card.number }}</span>
                                 <span v-if="selectedSet === 'ALL'" 
                                       class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
@@ -407,13 +412,32 @@
                                       :title="card.set">
                                     {{ getSetShortName(card.set) }}
                                 </span>
-                                <!-- Бейдж "Нужна мне!" при осмотре друга -->
+
+                                <!-- Бейдж: Эту карту ищут друзья (с всплывающим списком при наведении) -->
+                                <div v-if="getFriendsWantingCard(card.cardId).length > 0" 
+                                     class="relative group/wish inline-block" 
+                                     @click.stop>
+                                    <span class="px-1.5 py-0.5 rounded bg-amber-500/25 border border-amber-400/60 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-help">
+                                        🔔 Ждут: {{ getFriendsWantingCard(card.cardId).length }}
+                                    </span>
+                                    <!-- Всплывающая подсказка со списком ников друзей -->
+                                    <div class="hidden group-hover/wish:block absolute left-0 top-full mt-1.5 z-30 w-48 p-2.5 rounded-xl bg-stone-950/95 border border-amber-500/50 shadow-2xl text-[11px] text-stone-200 pointer-events-none">
+                                        <div class="text-amber-400 font-bold mb-1">Эту карту ищут друзья:</div>
+                                        <div v-for="fName in getFriendsWantingCard(card.cardId)" :key="fName" class="flex items-center gap-1.5 py-0.5">
+                                            <span>👤</span>
+                                            <span class="font-semibold text-white">{{ fName }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Бейдж "Нет у меня" при осмотре друга -->
                                 <span v-if="viewingFriend && getTotal(card.cardId) > 0 && getOwnTotal(card.cardId) === 0"
-                                      class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[10px] font-bold">
+                                      class="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold">
                                     🎯 Нет у меня
                                 </span>
                             </div>
-                            <span class="px-2 py-0.5 rounded-md text-[11px] font-medium" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
+
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-medium shrink-0" style="background: rgba(168,139,98,0.12); color: var(--text-muted)">
                                 {{ card.element }}
                             </span>
                         </div>
@@ -457,19 +481,29 @@
                             </button>
                         </div>
 
-                        <!-- Нижняя панель слота: Свои счетчики ИЛИ Инфо друга + Запрос в чат -->
-                        <div v-if="!viewingFriend" class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
+                        <!-- Нижняя панель слота: Свои счетчики + Колокольчик ИЛИ Инфо друга + Запрос -->
+                        <div v-if="!viewingFriend" class="flex items-center justify-between gap-1.5 mt-2.5 pt-2.5 px-1" style="border-top: 1px solid var(--border-color)" @click.stop>
                             <!-- Обычные -->
-                            <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                            <div class="flex items-center gap-1 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                                 <button @click="updateCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
-                                <span class="text-sm font-bold min-w-[18px] text-center" :class="getCount(card.cardId) > 0 ? 'text-emerald-500' : 'opacity-40'">
+                                <span class="text-sm font-bold min-w-[16px] text-center" :class="getCount(card.cardId) > 0 ? 'text-emerald-500' : 'opacity-40'">
                                     {{ getCount(card.cardId) }}
                                 </span>
                                 <button @click="updateCount(card.cardId, 1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">+</button>
                             </div>
 
+                            <!-- Кнопка Колокольчика (Хочу эту карту / В розыске) -->
+                            <button @click="toggleWishlist(card.cardId)"
+                                    class="px-2 py-1 rounded-lg text-xs font-bold border transition flex items-center justify-center"
+                                    :class="isOwnWishlisted(card.cardId) 
+                                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]' 
+                                        : 'bg-stone-900/60 border-white/10 opacity-45 hover:opacity-100 hover:border-amber-500/40'"
+                                    :title="isOwnWishlisted(card.cardId) ? 'Убрать из списка розыска' : 'Отслеживать карту (уведомить друзей, что я её ищу)'">
+                                🔔
+                            </button>
+
                             <!-- Фойла -->
-                            <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)" title="Фойловые копии">
+                            <div class="flex items-center gap-1 rounded-lg px-2 py-1" style="background: var(--input-bg); border: 1px solid var(--border-color)" title="Фойловые копии">
                                 <span class="text-xs">✨</span>
                                 <button @click="updateFoilCount(card.cardId, -1)" class="w-5 h-5 flex items-center justify-center font-bold hover:opacity-75">−</button>
                                 <span class="text-sm font-bold min-w-[16px] text-center" :class="getFoilCount(card.cardId) > 0 ? 'text-amber-400' : 'opacity-40'">
@@ -479,18 +513,30 @@
                             </div>
                         </div>
 
-                        <!-- Режим осмотра друга: сколько у него и кнопка "Спросить в чате" -->
-                        <div v-else class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 px-1.5" style="border-top: 1px solid var(--border-color)" @click.stop>
-                            <div class="text-xs flex items-center gap-2">
+                        <!-- Режим осмотра друга: сколько у него + колокольчик + кнопка "Спросить в чате" -->
+                        <div v-else class="flex items-center justify-between gap-1.5 mt-2.5 pt-2.5 px-1" style="border-top: 1px solid var(--border-color)" @click.stop>
+                            <div class="text-xs flex items-center gap-1.5">
                                 <span class="px-2 py-1 rounded-lg font-bold" style="background: var(--input-bg); border: 1px solid var(--border-color)">
                                     У друга: <strong :class="getCount(card.cardId) > 0 ? 'text-emerald-400' : 'opacity-40'">{{ getCount(card.cardId) }}</strong>
-                                    <span v-if="getFoilCount(card.cardId) > 0" class="text-amber-400 ml-1">+ {{ getFoilCount(card.cardId) }}✨</span>
+                                    <span v-if="getFoilCount(card.cardId) > 0" class="text-amber-400 ml-1">+{{ getFoilCount(card.cardId) }}✨</span>
                                 </span>
                             </div>
-                            <button @click="askFriendAboutCard(card)" 
-                                    class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 transition flex items-center gap-1">
-                                <span>💬 Спросить</span>
-                            </button>
+
+                            <div class="flex items-center gap-1.5">
+                                <!-- В чужом альбоме тоже можно повесить себе колокольчик на карту -->
+                                <button @click="toggleWishlist(card.cardId)"
+                                        class="px-2 py-1 rounded-lg text-xs font-bold border transition"
+                                        :class="isOwnWishlisted(card.cardId) 
+                                            ? 'bg-amber-500/25 border-amber-400 text-amber-300' 
+                                            : 'bg-stone-900/60 border-white/10 opacity-50 hover:opacity-100'"
+                                        :title="isOwnWishlisted(card.cardId) ? 'В вашем списке розыска' : 'Добавить в мой список розыска'">
+                                    🔔
+                                </button>
+                                <button @click="askFriendAboutCard(card)" 
+                                        class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 transition flex items-center gap-1">
+                                    <span>💬 Спросить</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -517,183 +563,7 @@
             </div>
         </div>
 
-        <!-- МОДАЛЬНОЕ ОКНО 3D-ИНСПЕКТОРА -->
-        <div v-if="activeCard" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="closeInspect">
-            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl flex flex-col items-center relative" @click.stop>
-                
-                <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
-
-                <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-1.5" style="color: var(--accent)">
-                    <span>{{ activeCard.set }} #{{ activeCard.number }}</span>
-                    <span>•</span>
-                    <img v-if="getRarityIcon(activeCard.rarity)" :src="getRarityIcon(activeCard.rarity)" class="w-5 h-5 object-contain inline-block" :class="getRarityClass(activeCard.rarity)">
-                    <span>{{ activeCard.rarity }}</span>
-                </div>
-
-                <h3 class="font-fantasy text-2xl sm:text-3xl font-bold text-center mb-1">{{ activeCard.name }}</h3>
-                
-                <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-5" style="color: var(--text-muted)">
-                    <span>{{ activeCard.element }}</span>
-                    <span v-if="formatCardSubtitle(activeCard)" style="color: var(--accent)">• {{ formatCardSubtitle(activeCard) }}</span>
-                    <span>• Стоимость: {{ activeCard.cost }} {{ activeCard.isElite ? 'Золота' : 'Серебра' }}</span>
-                    <span>•</span>
-                    <button @click="selectArtistFilter(activeCard.artist)" 
-                            class="font-semibold underline decoration-dotted hover:text-amber-400 transition flex items-center gap-1"
-                            style="color: var(--accent-bright)">
-                        🎨 Худ: {{ activeCard.artist }} 🔍
-                    </button>
-                </div>
-
-                <!-- 3D Сцена с крупной картой -->
-                <div class="inspect-stage my-1">
-                    <div class="relative w-72 sm:w-[345px] aspect-[2/2.85] rounded-2xl overflow-hidden inspect-card cursor-pointer select-none"
-                         :class="{ 'is-foil': getFoilCount(activeCard.cardId) > 0 || previewFoil }"
-                         :style="inspectCardStyle"
-                         @mousemove="onCardMouseMove"
-                         @mouseleave="onCardMouseLeave"
-                         @click="previewFoil = !previewFoil">
-                        
-                        <img :src="activeCard.imageUrl" :alt="activeCard.name" class="w-full h-full object-cover pointer-events-none">
-                        <div class="foil-shader"></div>
-                        <div class="card-glare"></div>
-                    </div>
-                </div>
-
-                <p class="text-xs mt-4 mb-5 text-center" style="color: var(--text-muted)">
-                    💡 Водите курсором по карте для 3D-наклона • Клик по карте переключает предпросмотр фойлы ✨
-                </p>
-
-                <!-- Управление количеством в инспекторе (Свой альбом) -->
-                <div v-if="!viewingFriend" class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                    <div class="flex flex-col items-center">
-                        <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Обычная версия</span>
-                        <div class="flex items-center gap-4">
-                            <button @click="updateCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
-                            <span class="text-xl font-extrabold text-emerald-500 min-w-[24px] text-center">{{ getCount(activeCard.cardId) }}</span>
-                            <button @click="updateCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col items-center" style="border-left: 1px solid var(--border-color)">
-                        <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Фойловая версия ✨</span>
-                        <div class="flex items-center gap-4">
-                            <button @click="updateFoilCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
-                            <span class="text-xl font-extrabold text-amber-400 min-w-[24px] text-center">{{ getFoilCount(activeCard.cardId) }}</span>
-                            <button @click="updateFoilCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Панель в инспекторе при осмотре друга -->
-                <div v-else class="w-full p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                    <div class="text-sm">
-                        У <strong>{{ viewingFriend.username }}</strong>: 
-                        <span class="text-emerald-400 font-bold ml-1">{{ getCount(activeCard.cardId) }} обычн.</span> / 
-                        <span class="text-amber-400 font-bold">{{ getFoilCount(activeCard.cardId) }} фойл ✨</span>
-                        <div class="text-xs opacity-70 mt-0.5">В вашей коллекции: {{ getOwnTotal(activeCard.cardId) }} шт.</div>
-                    </div>
-                    <button @click="askFriendAboutCard(activeCard)" 
-                            class="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition">
-                        💬 Спросить карту в чате
-                    </button>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- ПРИВЕТСТВЕННОЕ ОКНО ВХОДА / ПРОФИЛЯ -->
-        <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" @click="closeAuthModal">
-            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative" @click.stop>
-                <button @click="closeAuthModal" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
-
-                <!-- Если пользователь УЖЕ авторизован -->
-                <div v-if="currentUser">
-                    <div class="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-1">Облачный профиль активен</div>
-                    <h3 class="font-fantasy text-2xl font-bold mb-4" style="color: var(--accent-bright)">
-                        👤 {{ currentProfile?.username }}
-                    </h3>
-                    <div class="p-4 rounded-2xl mb-5 text-xs space-y-2" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                        <div class="flex justify-between">
-                            <span style="color: var(--text-muted)">Статус облака:</span>
-                            <span class="text-emerald-400 font-bold">☁️ Синхронизировано</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span style="color: var(--text-muted)">Уникальных карт в базе:</span>
-                            <span class="font-bold">{{ totalCollectedAll }} шт.</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span style="color: var(--text-muted)">Никнейм для друзей:</span>
-                            <span class="text-amber-300 font-mono font-bold">{{ currentProfile?.username }}</span>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-3">
-                        <button @click="forceCloudSync" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
-                            🔄 Сохранить в облако сейчас
-                        </button>
-                        <button @click="handleLogout" class="py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition">
-                            Выйти
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Если пользователь НЕ авторизован (Вход / Регистрация) -->
-                <div v-else>
-                    <div class="text-center mb-5">
-                        <h3 class="font-fantasy text-2xl font-bold" style="color: var(--accent-bright)">Облачный Альбом</h3>
-                        <p class="text-xs mt-1" style="color: var(--text-muted)">
-                            Сохраняйте коллекцию в облаке, открывайте её с телефона и обменивайтесь картами с друзьями
-                        </p>
-                    </div>
-
-                    <!-- Переключатель Вход / Новый профиль (Защита от опечаток) -->
-                    <div class="grid grid-cols-2 gap-2 p-1 rounded-xl mb-5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                        <button @click="authTab = 'login'; authError = ''" 
-                                class="py-2 rounded-lg text-xs font-bold transition"
-                                :style="authTab === 'login' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
-                            Войти в профиль
-                        </button>
-                        <button @click="authTab = 'register'; authError = ''" 
-                                class="py-2 rounded-lg text-xs font-bold transition"
-                                :style="authTab === 'register' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
-                            Создать профиль
-                        </button>
-                    </div>
-
-                    <form @submit.prevent="submitAuth" class="space-y-3.5">
-                        <div>
-                            <label class="block text-xs font-semibold mb-1">Ваш Никнейм (на англ. или рус.):</label>
-                            <input type="text" v-model="authUsername" required placeholder="Например: Gleb" 
-                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold mb-1">ПИН-код или пароль (минимум 6 символов):</label>
-                            <input type="password" v-model="authPin" required minlength="6" placeholder="••••••" 
-                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
-                        </div>
-
-                        <p v-if="authError" class="text-xs text-rose-400 font-semibold text-center bg-rose-950/40 border border-rose-500/30 rounded-xl p-2.5">
-                            {{ authError }}
-                        </p>
-
-                        <button type="submit" :disabled="authLoading" 
-                                class="w-full py-3 rounded-xl text-sm font-extrabold transition shadow-lg disabled:opacity-50"
-                                style="background: var(--accent); color: #121110">
-                            {{ authLoading ? '⏳ Подключение...' : (authTab === 'login' ? '🚀 Войти в коллекцию' : '✨ Создать профиль и сохранить карты') }}
-                        </button>
-                    </form>
-
-                    <div class="mt-5 pt-4 text-center" style="border-top: 1px solid var(--border-color)">
-                        <button @click="dismissWelcomeAsGuest" class="text-xs hover:underline" style="color: var(--text-muted)">
-                            Продолжить как гость (только в памяти этого браузера) →
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- БОКОВАЯ ПАНЕЛЬ ДРУЗЕЙ И ЖИВОГО ЧАТА -->
+        <!-- БОКОВАЯ ПАНЕЛЬ ДРУЗЕЙ И ЖИВОГО ЧАТА (z-50) -->
         <div v-if="showSocialDrawer" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex justify-end" @click="showSocialDrawer = false">
             <div class="ui-panel w-full max-w-2xl h-full shadow-2xl flex flex-col justify-between overflow-hidden" @click.stop>
                 
@@ -726,13 +596,14 @@
                     
                     <!-- Левая колонка: Поиск и Список друзей (5 колонок) -->
                     <div class="md:col-span-5 flex flex-col h-full overflow-hidden" style="border-right: 1px solid var(--border-color)">
-                        <!-- Добавление друга по нику -->
+                        <!-- Добавление друга по нику (Исправлена верстка инпута и кнопки) -->
                         <div class="p-3.5" style="border-bottom: 1px solid var(--border-color)">
                             <label class="block text-[11px] font-semibold mb-1.5" style="color: var(--text-muted)">Добавить коллекционера по нику:</label>
-                            <form @submit.prevent="addFriendByUsername" class="flex gap-1.5">
+                            <form @submit.prevent="addFriendByUsername" class="flex items-center gap-1.5 w-full">
                                 <input type="text" v-model="friendSearchInput" placeholder="Ник друга..." 
-                                       class="ui-input flex-1 rounded-xl px-3 py-1.5 text-xs">
-                                <button type="submit" class="px-3 py-1.5 rounded-xl text-xs font-bold" style="background: var(--accent); color: #121110">
+                                       class="ui-input min-w-0 flex-1 rounded-xl px-3 py-1.5 text-xs">
+                                <button type="submit" class="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition hover:opacity-90" 
+                                        style="background: var(--accent); color: #121110">
                                     + Добавить
                                 </button>
                             </form>
@@ -751,16 +622,20 @@
                                  class="p-3 rounded-2xl transition cursor-pointer border"
                                  :class="activeChatFriend?.id === fr.id ? 'border-amber-500/70 bg-amber-500/10' : 'border-white/10 bg-black/25 hover:border-white/25'"
                                  @click="selectChatFriend(fr)">
-                                <div class="flex items-center justify-between mb-2">
-                                    <div class="font-bold text-sm flex items-center gap-1.5">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="font-bold text-sm flex items-center gap-1.5 truncate">
                                         <span>👤 {{ fr.username }}</span>
                                         <span v-if="unreadByFriend[fr.id]" class="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px]">
                                             {{ unreadByFriend[fr.id] }}
                                         </span>
                                     </div>
-                                    <span class="text-[11px] text-emerald-400 font-semibold">
-                                        🃏 {{ countFriendCards(fr.inventory) }} карт
+                                    <span class="text-[11px] text-emerald-400 font-semibold shrink-0">
+                                        🃏 {{ countFriendCards(fr.inventory) }}
                                     </span>
+                                </div>
+
+                                <div v-if="(fr.wishlist || []).length > 0" class="text-[10px] text-amber-300/90 mb-2">
+                                    🔔 В розыске у друга: {{ (fr.wishlist || []).length }} карт
                                 </div>
 
                                 <div class="flex gap-1.5">
@@ -811,7 +686,7 @@
                                             ? 'bg-amber-600/25 border border-amber-500/40 text-stone-100 rounded-br-none' 
                                             : 'bg-stone-800/90 border border-stone-700 text-stone-200 rounded-bl-none'">
                                         
-                                        <!-- Если к сообщению прикреплена карта -->
+                                        <!-- Если к сообщению прикреплена карта (открывается поверх чата!) -->
                                         <div v-if="msg.card_id && getCardById(msg.card_id)" 
                                              @click="openInspectFromChat(msg.card_id)"
                                              class="flex items-center gap-2.5 p-2 rounded-xl bg-black/45 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition">
@@ -821,7 +696,7 @@
                                                     {{ getCardById(msg.card_id).set }} #{{ getCardById(msg.card_id).number }}
                                                 </div>
                                                 <div class="font-bold text-xs truncate">{{ getCardById(msg.card_id).name }}</div>
-                                                <div class="text-[10px] opacity-75">🔍 Кликните для 3D-осмотра</div>
+                                                <div class="text-[10px] opacity-75">🔍 Кликните для 3D-осмотра поверх чата</div>
                                             </div>
                                         </div>
 
@@ -846,8 +721,8 @@
                             <!-- Поле ввода сообщения -->
                             <form @submit.prevent="sendChatMessage" class="p-3 flex gap-2 bg-black/40" style="border-top: 1px solid var(--border-color)">
                                 <input type="text" v-model="chatInputText" placeholder="Напишите сообщение..." 
-                                       class="ui-input flex-1 rounded-xl px-3.5 py-2 text-xs">
-                                <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
+                                       class="ui-input min-w-0 flex-1 rounded-xl px-3.5 py-2 text-xs">
+                                <button type="submit" class="shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
                                     Отправить ➤
                                 </button>
                             </form>
@@ -858,8 +733,215 @@
             </div>
         </div>
 
+        <!-- МОДАЛЬНОЕ ОКНО 3D-ИНСПЕКТОРА (z-[80] — открывается ПОВЕРХ чата!) -->
+        <div v-if="activeCard" class="fixed inset-0 z-[80] bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="closeInspect">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl flex flex-col items-center relative" @click.stop>
+                
+                <button @click="closeInspect" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
+
+                <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-1.5" style="color: var(--accent)">
+                    <span>{{ activeCard.set }} #{{ activeCard.number }}</span>
+                    <span>•</span>
+                    <img v-if="getRarityIcon(activeCard.rarity)" :src="getRarityIcon(activeCard.rarity)" class="w-5 h-5 object-contain inline-block" :class="getRarityClass(activeCard.rarity)">
+                    <span>{{ activeCard.rarity }}</span>
+                </div>
+
+                <h3 class="font-fantasy text-2xl sm:text-3xl font-bold text-center mb-1">{{ activeCard.name }}</h3>
+                
+                <div class="flex flex-wrap items-center justify-center gap-2 text-xs mb-3" style="color: var(--text-muted)">
+                    <span>{{ activeCard.element }}</span>
+                    <span v-if="formatCardSubtitle(activeCard)" style="color: var(--accent)">• {{ formatCardSubtitle(activeCard) }}</span>
+                    <span>• Стоимость: {{ activeCard.cost }} {{ activeCard.isElite ? 'Золота' : 'Серебра' }}</span>
+                    <span>•</span>
+                    <button @click="selectArtistFilter(activeCard.artist)" 
+                            class="font-semibold underline decoration-dotted hover:text-amber-400 transition flex items-center gap-1"
+                            style="color: var(--accent-bright)">
+                        🎨 Худ: {{ activeCard.artist }} 🔍
+                    </button>
+                </div>
+
+                <!-- Плашка: кто из друзей ищет эту карту -->
+                <div v-if="getFriendsWantingCard(activeCard.cardId).length > 0" 
+                     class="mb-3 px-3.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-semibold flex items-center gap-2">
+                    <span>🔔 Эту карту ищут друзья:</span>
+                    <strong class="text-white">{{ getFriendsWantingCard(activeCard.cardId).join(', ') }}</strong>
+                </div>
+
+                <!-- 3D Сцена с крупной картой (Поддержка и мыши, и тач-движения пальцем) -->
+                <div class="inspect-stage my-1">
+                    <div class="relative w-72 sm:w-[345px] aspect-[2/2.85] rounded-2xl overflow-hidden inspect-card cursor-pointer select-none"
+                         :class="{ 'is-foil': getFoilCount(activeCard.cardId) > 0 || previewFoil }"
+                         :style="inspectCardStyle"
+                         @mousemove="onCardMouseMove"
+                         @mouseleave="onCardMouseLeave"
+                         @touchstart="onCardTouchStart"
+                         @touchmove.prevent="onCardTouchMove"
+                         @touchend="onCardTouchEnd"
+                         @click="previewFoil = !previewFoil">
+                        
+                        <img :src="activeCard.imageUrl" :alt="activeCard.name" class="w-full h-full object-cover pointer-events-none">
+                        <div class="foil-shader"></div>
+                        <div class="card-glare"></div>
+                    </div>
+                </div>
+
+                <p class="text-xs mt-4 mb-5 text-center" style="color: var(--text-muted)">
+                    💡 Водите курсором или пальцем по карте для 3D-наклона • Тап/клик переключает фойлу ✨
+                </p>
+
+                <!-- Управление количеством в инспекторе (Свой альбом) -->
+                <div v-if="!viewingFriend" class="w-full space-y-3">
+                    <div class="grid grid-cols-2 gap-4 w-full p-4 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Обычная версия</span>
+                            <div class="flex items-center gap-4">
+                                <button @click="updateCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
+                                <span class="text-xl font-extrabold text-emerald-500 min-w-[24px] text-center">{{ getCount(activeCard.cardId) }}</span>
+                                <button @click="updateCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col items-center" style="border-left: 1px solid var(--border-color)">
+                            <span class="text-xs font-medium mb-2" style="color: var(--text-muted)">Фойловая версия ✨</span>
+                            <div class="flex items-center gap-4">
+                                <button @click="updateFoilCount(activeCard.cardId, -1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">−</button>
+                                <span class="text-xl font-extrabold text-amber-400 min-w-[24px] text-center">{{ getFoilCount(activeCard.cardId) }}</span>
+                                <button @click="updateFoilCount(activeCard.cardId, 1)" class="ui-panel w-9 h-9 rounded-xl font-bold text-lg hover:opacity-80">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="toggleWishlist(activeCard.cardId)"
+                            class="w-full py-2.5 px-4 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-2"
+                            :class="isOwnWishlisted(activeCard.cardId)
+                                ? 'bg-amber-500/25 border-amber-400 text-amber-300'
+                                : 'ui-input hover:border-amber-500/50'">
+                        <span>🔔 {{ isOwnWishlisted(activeCard.cardId) ? 'Карта в вашем списке розыска (нажмите, чтобы убрать)' : 'Добавить карту в список розыска (уведомить друзей)' }}</span>
+                    </button>
+                </div>
+
+                <!-- Панель в инспекторе при осмотре друга -->
+                <div v-else class="w-full p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                    <div class="text-sm">
+                        У <strong>{{ viewingFriend.username }}</strong>: 
+                        <span class="text-emerald-400 font-bold ml-1">{{ getCount(activeCard.cardId) }} обычн.</span> / 
+                        <span class="text-amber-400 font-bold">{{ getFoilCount(activeCard.cardId) }} фойл ✨</span>
+                        <div class="text-xs opacity-70 mt-0.5">В вашей коллекции: {{ getOwnTotal(activeCard.cardId) }} шт.</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="toggleWishlist(activeCard.cardId)"
+                                class="px-3.5 py-2.5 rounded-xl text-xs font-bold border transition"
+                                :class="isOwnWishlisted(activeCard.cardId) ? 'bg-amber-500/25 border-amber-400 text-amber-300' : 'ui-input'">
+                            🔔 {{ isOwnWishlisted(activeCard.cardId) ? 'В розыске' : 'В розыск' }}
+                        </button>
+                        <button @click="askFriendAboutCard(activeCard)" 
+                                class="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition">
+                            💬 Спросить в чате
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ПРИВЕТСТВЕННОЕ ОКНО ВХОДА / ПРОФИЛЯ -->
+        <div v-if="showAuthModal" class="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4" @click="closeAuthModal">
+            <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative" @click.stop>
+                <button @click="closeAuthModal" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
+
+                <!-- Если пользователь УЖЕ авторизован -->
+                <div v-if="currentUser">
+                    <div class="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-1">Облачный профиль активен</div>
+                    <h3 class="font-fantasy text-2xl font-bold mb-4" style="color: var(--accent-bright)">
+                        👤 {{ currentProfile?.username }}
+                    </h3>
+                    <div class="p-4 rounded-2xl mb-5 text-xs space-y-2" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Статус облака:</span>
+                            <span class="text-emerald-400 font-bold">☁️ Синхронизировано</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Уникальных карт в базе:</span>
+                            <span class="font-bold">{{ totalCollectedAll }} шт.</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Карт в списке розыска (🔔):</span>
+                            <span class="text-amber-400 font-bold">{{ wishlist.length }} шт.</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span style="color: var(--text-muted)">Никнейм для друзей:</span>
+                            <span class="text-amber-300 font-mono font-bold">{{ currentProfile?.username }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button @click="forceCloudSync" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition" style="background: var(--accent); color: #121110">
+                            🔄 Сохранить в облако сейчас
+                        </button>
+                        <button @click="handleLogout" class="py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition">
+                            Выйти
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Если пользователь НЕ авторизован (Вход / Регистрация) -->
+                <div v-else>
+                    <div class="text-center mb-5">
+                        <h3 class="font-fantasy text-2xl font-bold" style="color: var(--accent-bright)">Облачный Альбом</h3>
+                        <p class="text-xs mt-1" style="color: var(--text-muted)">
+                            Сохраняйте коллекцию в облаке, открывайте её с телефона и обменивайтесь картами с друзьями
+                        </p>
+                    </div>
+
+                    <!-- Переключатель Вход / Новый профиль -->
+                    <div class="grid grid-cols-2 gap-2 p-1 rounded-xl mb-5" style="background: var(--input-bg); border: 1px solid var(--border-color)">
+                        <button @click="authTab = 'login'; authError = ''" 
+                                class="py-2 rounded-lg text-xs font-bold transition"
+                                :style="authTab === 'login' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Войти в профиль
+                        </button>
+                        <button @click="authTab = 'register'; authError = ''" 
+                                class="py-2 rounded-lg text-xs font-bold transition"
+                                :style="authTab === 'register' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
+                            Создать профиль
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="submitAuth" class="space-y-3.5">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">Ваш Никнейм (на англ. или рус.):</label>
+                            <input type="text" v-model="authUsername" required placeholder="Например: Gleb" 
+                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">ПИН-код или пароль (минимум 6 символов):</label>
+                            <input type="password" v-model="authPin" required minlength="6" placeholder="••••••" 
+                                   class="ui-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+                        </div>
+
+                        <p v-if="authError" class="text-xs text-rose-400 font-semibold text-center bg-rose-950/40 border border-rose-500/30 rounded-xl p-2.5">
+                            {{ authError }}
+                        </p>
+
+                        <button type="submit" :disabled="authLoading" 
+                                class="w-full py-3 rounded-xl text-sm font-extrabold transition shadow-lg disabled:opacity-50"
+                                style="background: var(--accent); color: #121110">
+                            {{ authLoading ? '⏳ Подключение...' : (authTab === 'login' ? '🚀 Войти в коллекцию' : '✨ Создать профиль и сохранить карты') }}
+                        </button>
+                    </form>
+
+                    <div class="mt-5 pt-4 text-center" style="border-top: 1px solid var(--border-color)">
+                        <button @click="dismissWelcomeAsGuest" class="text-xs hover:underline" style="color: var(--text-muted)">
+                            Продолжить как гость (только в памяти этого браузера) →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Модальное окно Бэкапа / Переноса коллекции -->
-        <div v-if="showSyncModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="showSyncModal = false">
+        <div v-if="showSyncModal" class="fixed inset-0 z-[70] bg-black/85 backdrop-blur-md flex items-center justify-center p-4" @click="showSyncModal = false">
             <div class="ui-panel rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative" @click.stop>
                 <button @click="showSyncModal = false" class="ui-input absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold hover:opacity-80">×</button>
                 
@@ -900,7 +982,6 @@
         const SUPABASE_KEY = 'sb_publishable_SffKX4DXsjrTYD-CCv-TSQ_i235kUG9';
         const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Превращает любой никнейм (включая русский) в валидный технический email для Supabase Auth
         const usernameToTechEmail = (username) => {
             const clean = username.trim().toLowerCase();
             let hex = '';
@@ -914,6 +995,10 @@
             setup() {
                 const cards = ref([]);
                 const inventory = ref({});
+                const wishlist = ref([]); // Массив cardId в списке розыска (колокольчики)
+
+                // Очередь карт, которые только что появились у пользователя (для авто-уведомления друзей)
+                const pendingNewlyAcquired = new Set();
 
                 // Состояние авторизации и облака
                 const currentUser = ref(null);
@@ -924,7 +1009,7 @@
                 const authPin = ref('');
                 const authError = ref('');
                 const authLoading = ref(false);
-                const syncState = ref('saved'); // 'saved' | 'saving'
+                const syncState = ref('saved');
                 let syncTimeout = null;
 
                 // Состояние друзей, чужого альбома и чата
@@ -998,7 +1083,7 @@
                     }
                 });
 
-                const getCardById = (cid) => cards.value.find(c => c.cardId === cid);
+                const getCardById = (cid) => cards.value.find(c => c.cardId === Number(cid));
 
                 const formatCardSubtitle = (card) => {
                     const cClass = (card.cardClass || card.class || '').trim();
@@ -1031,26 +1116,57 @@
                 };
 
                 // ==========================================
-                // РАБОТА С ИНВЕНТАРЕМ (СВОЙ ИЛИ ДРУГА)
+                // РАБОТА С ИНВЕНТАРЕМ И КОЛОКОЛЬЧИКАМИ (WISHLIST)
                 // ==========================================
                 const activeInventory = computed(() => {
                     return viewingFriend.value ? (viewingFriend.value.inventory || {}) : inventory.value;
                 });
 
+                const activeWishlist = computed(() => {
+                    return viewingFriend.value ? (viewingFriend.value.wishlist || []) : wishlist.value;
+                });
+
                 const getCount = (id) => activeInventory.value[id]?.normal || 0;
                 const getFoilCount = (id) => activeInventory.value[id]?.foil || 0;
                 const getTotal = (id) => getCount(id) + getFoilCount(id);
-
-                // Собственный инвентарь (для сравнения при осмотре друга)
                 const getOwnTotal = (id) => (inventory.value[id]?.normal || 0) + (inventory.value[id]?.foil || 0);
+
+                const isOwnWishlisted = (cardId) => wishlist.value.includes(Number(cardId));
+                const isActiveWishlisted = (cardId) => activeWishlist.value.includes(Number(cardId));
+
+                const toggleWishlist = (cardId) => {
+                    const numId = Number(cardId);
+                    const idx = wishlist.value.indexOf(numId);
+                    if (idx === -1) {
+                        wishlist.value.push(numId);
+                    } else {
+                        wishlist.value.splice(idx, 1);
+                    }
+                    saveInventoryLocalAndCloud();
+                };
+
+                // Список имен друзей, которые ищут данную карту
+                const getFriendsWantingCard = (cardId) => {
+                    const numId = Number(cardId);
+                    const names = [];
+                    friendsList.value.forEach(fr => {
+                        if (Array.isArray(fr.wishlist) && fr.wishlist.includes(numId)) {
+                            names.push(fr.username);
+                        }
+                    });
+                    return names;
+                };
 
                 const countInventoryKeys = (invObj) => {
                     if (!invObj) return 0;
-                    return Object.values(invObj).filter(v => (v.normal || 0) + (v.foil || 0) > 0).length;
+                    return Object.entries(invObj)
+                        .filter(([k, v]) => k !== '_wishlist' && ((v?.normal || 0) + (v?.foil || 0) > 0))
+                        .length;
                 };
 
                 const saveInventoryLocalAndCloud = () => {
                     localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                    localStorage.setItem('berserk_wishlist_gb', JSON.stringify(wishlist.value));
                     if (currentUser.value) {
                         syncState.value = 'saving';
                         clearTimeout(syncTimeout);
@@ -1060,17 +1176,52 @@
                     }
                 };
 
+                // Авто-уведомление друзьям, если у пользователя появилась карта из их списка розыска
+                const notifyFriendsAboutNewCards = async () => {
+                    if (!currentUser.value || pendingNewlyAcquired.size === 0) return;
+                    const acquiredIds = Array.from(pendingNewlyAcquired);
+                    pendingNewlyAcquired.clear();
+
+                    for (const cid of acquiredIds) {
+                        if (getOwnTotal(cid) <= 0) continue; // Если кликнул + и сразу вернул в 0 — не шлем
+                        const cardObj = getCardById(cid);
+                        if (!cardObj) continue;
+
+                        for (const fr of friendsList.value) {
+                            if (Array.isArray(fr.wishlist) && fr.wishlist.includes(Number(cid))) {
+                                const msgText = `🔔 Авто-радар: У меня появилась карта «${cardObj.name}» (${cardObj.set} #${cardObj.number}), которая стоит у тебя в списке розыска!`;
+                                const { data } = await sb.from('messages').insert({
+                                    sender_id: currentUser.value.id,
+                                    receiver_id: fr.id,
+                                    content: msgText,
+                                    card_id: cardObj.cardId
+                                }).select().single();
+
+                                if (data && !messagesList.value.some(m => m.id === data.id)) {
+                                    messagesList.value.push(data);
+                                }
+                            }
+                        }
+                    }
+                };
+
                 const pushInventoryToCloud = async () => {
                     if (!currentUser.value) return;
                     syncState.value = 'saving';
+                    const payload = {
+                        inventory: inventory.value,
+                        wishlist: wishlist.value,
+                        updated_at: new Date().toISOString()
+                    };
                     const { error } = await sb
                         .from('profiles')
-                        .update({
-                            inventory: inventory.value,
-                            updated_at: new Date().toISOString()
-                        })
+                        .update(payload)
                         .eq('id', currentUser.value.id);
-                    if (!error) syncState.value = 'saved';
+
+                    if (!error) {
+                        syncState.value = 'saved';
+                        await notifyFriendsAboutNewCards();
+                    }
                 };
 
                 const forceCloudSync = async () => {
@@ -1079,15 +1230,33 @@
 
                 const updateCount = (id, delta) => {
                     if (viewingFriend.value) return;
+                    const prevTotal = getOwnTotal(id);
                     if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
                     inventory.value[id].normal = Math.max(0, inventory.value[id].normal + delta);
+                    const newTotal = getOwnTotal(id);
+
+                    // Если карта появилась впервые (было 0, стало > 0)
+                    if (prevTotal === 0 && newTotal > 0) {
+                        pendingNewlyAcquired.add(Number(id));
+                        // Автоматически снимаем свой колокольчик, так как карта уже добыта
+                        const wIdx = wishlist.value.indexOf(Number(id));
+                        if (wIdx !== -1) wishlist.value.splice(wIdx, 1);
+                    }
                     saveInventoryLocalAndCloud();
                 };
 
                 const updateFoilCount = (id, delta) => {
                     if (viewingFriend.value) return;
+                    const prevTotal = getOwnTotal(id);
                     if (!inventory.value[id]) inventory.value[id] = { normal: 0, foil: 0 };
                     inventory.value[id].foil = Math.max(0, inventory.value[id].foil + delta);
+                    const newTotal = getOwnTotal(id);
+
+                    if (prevTotal === 0 && newTotal > 0) {
+                        pendingNewlyAcquired.add(Number(id));
+                        const wIdx = wishlist.value.indexOf(Number(id));
+                        if (wIdx !== -1) wishlist.value.splice(wIdx, 1);
+                    }
                     saveInventoryLocalAndCloud();
                 };
 
@@ -1107,14 +1276,9 @@
                         const cloudCount = countInventoryKeys(prof.inventory);
                         const localCount = countInventoryKeys(inventory.value);
 
-                        // Умное слияние: если в облаке есть карты — берем облако; если в облаке пусто, а локально есть — пушим локальные в облако
                         if (cloudCount > 0 && localCount === 0) {
                             inventory.value = prof.inventory;
-                            localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
-                        } else if (localCount > 0 && cloudCount === 0) {
-                            await pushInventoryToCloud();
                         } else if (cloudCount > 0 && localCount > 0) {
-                            // Объединяем максимумы, чтобы ни одна карта не потерялась
                             const merged = { ...prof.inventory };
                             for (const [k, val] of Object.entries(inventory.value)) {
                                 if (!merged[k]) merged[k] = val;
@@ -1126,9 +1290,15 @@
                                 }
                             }
                             inventory.value = merged;
-                            localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
-                            await pushInventoryToCloud();
                         }
+
+                        // Слияние списков розыска (wishlist)
+                        const cloudWish = Array.isArray(prof.wishlist) ? prof.wishlist : [];
+                        wishlist.value = Array.from(new Set([...cloudWish, ...wishlist.value])).map(Number);
+
+                        localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                        localStorage.setItem('berserk_wishlist_gb', JSON.stringify(wishlist.value));
+                        await pushInventoryToCloud();
 
                         await loadFriendsList();
                         await loadMessages();
@@ -1148,7 +1318,6 @@
 
                     try {
                         if (authTab.value === 'login') {
-                            // Проверяем, существует ли такой профиль (защита от опечаток)
                             const { data: existingProf } = await sb
                                 .from('profiles')
                                 .select('username')
@@ -1170,7 +1339,6 @@
                             await loadUserProfile(data.user);
                             showAuthModal.value = false;
                         } else {
-                            // Регистрация нового профиля
                             const { data: taken } = await sb
                                 .from('profiles')
                                 .select('id')
@@ -1194,7 +1362,8 @@
                                     id: data.user.id,
                                     username: cleanName,
                                     username_lower: cleanName.toLowerCase(),
-                                    inventory: inventory.value
+                                    inventory: inventory.value,
+                                    wishlist: wishlist.value
                                 });
                                 if (profErr) throw profErr;
 
@@ -1304,13 +1473,12 @@
 
                 const exitFriendView = () => {
                     viewingFriend.value = null;
-                    if (filterMode.value === 'TRADE_NEEDED' || filterMode.value === 'FRIEND_DUPLICATES') {
+                    if (['TRADE_NEEDED', 'FRIEND_DUPLICATES'].includes(filterMode.value)) {
                         filterMode.value = 'ALL';
                     }
                     currentPage.value = 1;
                 };
 
-                // Количество карт, которые есть у друга, но отсутствуют у меня
                 const tradeNeededCount = computed(() => {
                     if (!viewingFriend.value) return 0;
                     const fInv = viewingFriend.value.inventory || {};
@@ -1318,6 +1486,14 @@
                         const fTotal = (fInv[c.cardId]?.normal || 0) + (fInv[c.cardId]?.foil || 0);
                         return fTotal > 0 && getOwnTotal(c.cardId) === 0;
                     }).length;
+                });
+
+                const activeWishlistCount = computed(() => {
+                    return cardsInActiveSet.value.filter(c => isActiveWishlisted(c.cardId)).length;
+                });
+
+                const wantedByFriendsCount = computed(() => {
+                    return cardsInActiveSet.value.filter(c => getFriendsWantingCard(c.cardId).length > 0 && getOwnTotal(c.cardId) > 0).length;
                 });
 
                 // ==========================================
@@ -1403,7 +1579,6 @@
                     scrollToBottomChat();
                 };
 
-                // Кнопка "💬 Спросить" на карте друга
                 const askFriendAboutCard = (card) => {
                     if (!viewingFriend.value) return;
                     activeCard.value = null;
@@ -1464,7 +1639,6 @@
                                 if (!messagesList.value.some(m => m.id === msg.id)) {
                                     messagesList.value.push(msg);
                                 }
-                                // Если написал кто-то новый, автоматически подгружаем его в список контактов
                                 if (msg.sender_id !== currentUser.value.id && !friendsList.value.some(f => f.id === msg.sender_id)) {
                                     await sb.from('friendships').upsert({
                                         user_id: currentUser.value.id,
@@ -1494,7 +1668,6 @@
                 // ==========================================
                 onMounted(async () => {
                     try {
-                        // Анти-кэш параметр, чтобы новые сеты сразу подтягивались без инкогнито
                         const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
                         const data = await res.json();
                         cards.value = sanitizeCards(data);
@@ -1505,15 +1678,16 @@
                     const savedInv = localStorage.getItem('berserk_inventory_gb');
                     if (savedInv) inventory.value = JSON.parse(savedInv);
 
+                    const savedWish = localStorage.getItem('berserk_wishlist_gb');
+                    if (savedWish) wishlist.value = JSON.parse(savedWish);
+
                     const savedSet = localStorage.getItem('berserk_selected_set');
                     if (savedSet) selectedSet.value = savedSet;
 
-                    // Проверяем активную сессию Supabase
                     const { data: { session } } = await sb.auth.getSession();
                     if (session?.user) {
                         await loadUserProfile(session.user);
                     } else {
-                        // Показываем приветственное окно входа, если гость его еще не закрывал
                         const dismissed = localStorage.getItem('berserk_guest_dismissed');
                         if (!dismissed) {
                             showAuthModal.value = true;
@@ -1528,6 +1702,7 @@
                 });
 
                 const handleKeydown = (e) => {
+                    // Приоритет 1: Закрываем 3D-инспектор (даже если он открыт поверх чата!)
                     if (activeCard.value) {
                         if (e.key === 'Escape') closeInspect();
                         return;
@@ -1624,6 +1799,8 @@
                         if (filterMode.value === 'OWNED') matchMode = total > 0;
                         if (filterMode.value === 'MISSING') matchMode = total === 0;
                         if (filterMode.value === 'FOIL') matchMode = getFoilCount(card.cardId) > 0;
+                        if (filterMode.value === 'WISHLIST') matchMode = isActiveWishlisted(card.cardId);
+                        if (filterMode.value === 'WANTED_BY_FRIENDS') matchMode = getFriendsWantingCard(card.cardId).length > 0 && getOwnTotal(card.cardId) > 0;
                         if (filterMode.value === 'TRADE_NEEDED') matchMode = total > 0 && getOwnTotal(card.cardId) === 0;
                         if (filterMode.value === 'FRIEND_DUPLICATES') matchMode = total >= 2;
 
@@ -1724,18 +1901,14 @@
                     URL.revokeObjectURL(url);
                 };
 
-                const openInspect = (card) => {
-                    activeCard.value = card;
-                    previewFoil.value = false;
-                    onCardMouseLeave();
-                };
-                const closeInspect = () => { activeCard.value = null; };
-
-                const onCardMouseMove = (e) => {
+                // ==========================================
+                // 3D-НАКЛОН КАРТЫ (МЫШЬ + TOUCH MOVE НА ТЕЛЕФОНЕ)
+                // ==========================================
+                const updateTiltByClientCoords = (clientX, clientY, element) => {
                     isHoveringCard.value = true;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    const rect = element.getBoundingClientRect();
+                    const x = clientX - rect.left;
+                    const y = clientY - rect.top;
                     
                     const px = Math.max(0, Math.min(100, (x / rect.width) * 100));
                     const py = Math.max(0, Math.min(100, (y / rect.height) * 100));
@@ -1748,6 +1921,10 @@
                     rotY.value = ((px - 50) / 50) * 16;
                 };
 
+                const onCardMouseMove = (e) => {
+                    updateTiltByClientCoords(e.clientX, e.clientY, e.currentTarget);
+                };
+
                 const onCardMouseLeave = () => {
                     isHoveringCard.value = false;
                     rotX.value = 0;
@@ -1756,6 +1933,29 @@
                     my.value = 50;
                     glareOpacity.value = 0;
                 };
+
+                const onCardTouchStart = (e) => {
+                    if (e.touches && e.touches.length > 0) {
+                        updateTiltByClientCoords(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget);
+                    }
+                };
+
+                const onCardTouchMove = (e) => {
+                    if (e.touches && e.touches.length > 0) {
+                        updateTiltByClientCoords(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget);
+                    }
+                };
+
+                const onCardTouchEnd = () => {
+                    onCardMouseLeave();
+                };
+
+                const openInspect = (card) => {
+                    activeCard.value = card;
+                    previewFoil.value = false;
+                    onCardMouseLeave();
+                };
+                const closeInspect = () => { activeCard.value = null; };
 
                 const inspectCardStyle = computed(() => ({
                     transform: `rotateX(${rotX.value.toFixed(2)}deg) rotateY(${rotY.value.toFixed(2)}deg) scale(${isHoveringCard.value ? 1.03 : 1})`,
@@ -1775,9 +1975,10 @@
                     currentPage, pageDirection, totalPages, paginatedCards, filteredCards,
                     availableArtists, selectArtistFilter, toggleRarityFilter,
                     getCount, getFoilCount, getTotal, getOwnTotal, updateCount, updateFoilCount,
+                    wishlist, isOwnWishlisted, toggleWishlist, getFriendsWantingCard, activeWishlistCount, wantedByFriendsCount,
                     prevPage, nextPage, resetPage, resetFilters,
                     activeCard, previewFoil, openInspect, closeInspect,
-                    onCardMouseMove, onCardMouseLeave, inspectCardStyle,
+                    onCardMouseMove, onCardMouseLeave, onCardTouchStart, onCardTouchMove, onCardTouchEnd, inspectCardStyle,
                     showSyncModal, syncCodeText, syncStatusMsg, copySyncCode, applySyncCode, downloadBackupFile,
                     // Auth & Cloud
                     currentUser, currentProfile, showAuthModal, authTab, authUsername, authPin, authError, authLoading,
