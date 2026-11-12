@@ -3,27 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Берсерк: Батлер и Справочник (BETA)</title>
+    <title>Берсерк: Помощник Партии (BETA)</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-main: #121110;
-            --bg-panel: rgba(26, 24, 22, 0.92);
-            --bg-slot: rgba(15, 14, 13, 0.85);
-            --border-color: rgba(168, 139, 98, 0.25);
-            --border-hover: rgba(201, 166, 107, 0.65);
-            --text-main: #eae6df;
-            --text-muted: #9e9689;
+            --bg-main: #0f0e0d;
+            --bg-panel: #181614;
+            --bg-card: #201d1a;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-gold: rgba(201, 166, 107, 0.35);
+            --text-main: #ede9e3;
+            --text-muted: #948c80;
             --accent: #c9a66b;
             --accent-bright: #e5c384;
-            --input-bg: #181614;
         }
 
         body {
             background-color: var(--bg-main);
-            background-image: radial-gradient(circle at 50% 0%, rgba(180, 140, 80, 0.08) 0%, transparent 70%);
             color: var(--text-main);
             font-family: 'Inter', system-ui, sans-serif;
             overflow-x: hidden;
@@ -31,15 +29,23 @@
 
         .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
 
-        .ui-panel {
+        .panel {
             background: var(--bg-panel);
-            border: 1px solid var(--border-color);
-            backdrop-filter: blur(14px);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .card-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            transition: border-color 0.2s ease, transform 0.15s ease;
+        }
+        .card-box:hover {
+            border-color: var(--border-gold);
         }
 
         .ui-input {
-            background: var(--input-bg);
-            border: 1px solid var(--border-color);
+            background: #121110;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             color: var(--text-main);
         }
         .ui-input:focus {
@@ -47,481 +53,272 @@
             border-color: var(--accent);
         }
 
-        .tab-btn {
-            background: var(--input-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-muted);
-            transition: all 0.2s ease;
-        }
-        .tab-btn:hover {
-            border-color: var(--border-hover);
-            color: var(--text-main);
-        }
-        .tab-btn.active {
-            background: linear-gradient(135deg, rgba(201, 166, 107, 0.25) 0%, rgba(201, 166, 107, 0.08) 100%);
-            border-color: var(--accent);
-            color: var(--accent-bright);
-            box-shadow: 0 4px 15px -3px rgba(201, 166, 107, 0.25);
+        /* Поворот закрытой карты на Столе Боя */
+        .tapped-card {
+            transform: rotate(90deg) scale(0.82);
+            opacity: 0.55;
+            filter: grayscale(40%);
         }
 
-        /* Визуальный эффект закрытой (повернутой) карты на столе боя */
-        .fighter-closed {
-            background: rgba(10, 9, 9, 0.85) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
+        /* Полосы таблицы ударов как на оригинальной памятке */
+        .strike-row-odd {
+            background: rgba(212, 175, 105, 0.14);
         }
-        .fighter-closed .fighter-thumb {
-            transform: rotate(90deg) scale(0.85);
-            filter: brightness(0.65);
+        .strike-row-even {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .strike-row-active {
+            background: rgba(245, 158, 11, 0.28) !important;
+            outline: 2px solid #f59e0b;
+        }
+        .strike-row-prev {
+            background: rgba(16, 185, 129, 0.18) !important;
+            outline: 1px dashed #10b981;
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar-thumb { background: rgba(201, 166, 107, 0.35); border-radius: 9999px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 166, 107, 0.6); }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 166, 107, 0.25); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 166, 107, 0.5); }
     </style>
 </head>
-<body class="min-h-screen pb-16">
-    <div id="app" class="max-w-[1440px] mx-auto px-4 sm:px-8 pt-6">
+<body class="min-h-screen pb-12">
+    <div id="app" class="max-w-[1360px] mx-auto px-4 sm:px-6 pt-4">
 
-        <!-- ВЕРХНЯЯ ШАПКА С БЕЙДЖЕМ BETA -->
-        <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-6 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-5">
-            <div class="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                <a href="index.html" class="ui-input px-4 py-2.5 rounded-xl text-xs font-bold hover:border-amber-500/70 transition flex items-center gap-2 shrink-0">
+        <!-- КОМПАКТНАЯ ШАПКА БЕЗ ВИЗУАЛЬНОГО ШУМА -->
+        <header class="panel rounded-2xl px-5 py-3.5 mb-5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <a href="index.html" class="ui-input px-3 py-1.5 rounded-xl text-xs font-semibold hover:border-amber-500/50 transition flex items-center gap-1.5">
                     <span>← В Альбом</span>
                 </a>
-                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/50 hidden sm:flex items-center justify-center text-2xl shadow-lg shrink-0">
-                    ⚔️
-                </div>
-                <div>
-                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                        <h1 class="font-fantasy text-2xl sm:text-3xl font-extrabold tracking-wider" style="color: var(--accent-bright)">
-                            БЕРСЕРК: БАТЛЕР
-                        </h1>
-                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 border border-amber-400/60 text-amber-300 flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                            🚧 BETA • Тестовая функция в разработке
-                        </span>
-                    </div>
-                    <p class="text-xs sm:text-sm mt-1" style="color: var(--text-muted)">
-                        Помощник настольной партии: честный калькулятор кристаллов (Золото/Серебро), трекер ХП и полная энциклопедия правил
-                    </p>
+                <div class="h-5 w-[1px] bg-white/10 hidden sm:block"></div>
+                <div class="flex items-center gap-2.5">
+                    <h1 class="font-fantasy text-lg sm:text-xl font-bold tracking-wide" style="color: var(--accent-bright)">
+                        ПОМОЩНИК ПАРТИИ
+                    </h1>
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        BETA • Тест
+                    </span>
                 </div>
             </div>
 
-            <!-- Переключатель 3 основных модулей -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
-                <button @click="activeTab = 'builder'" class="tab-btn py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'builder' }">
-                    <span>🛡️ 1. Набор отрядов</span>
+            <!-- Главные вкладки -->
+            <nav class="flex items-center gap-1.5 p-1 rounded-xl bg-black/40 border border-white/5">
+                <button @click="activeTab = 'draft'"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition"
+                        :class="activeTab === 'draft' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400 hover:text-white'">
+                    1. Набор отрядов
                 </button>
-                <button @click="activeTab = 'battle'" class="tab-btn py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'battle' }">
-                    <span>⚔️ 2. Стол боя ({{ totalFightersCount }})</span>
+                <button @click="activeTab = 'battle'"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+                        :class="activeTab === 'battle' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400 hover:text-white'">
+                    <span>2. Стол боя</span>
+                    <span v-if="battleStarted" class="w-2 h-2 rounded-full bg-emerald-400"></span>
                 </button>
-                <button @click="activeTab = 'glossary'" class="tab-btn py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2" :class="{ active: activeTab === 'glossary' }">
-                    <span>📖 3. Справочник и Правила</span>
+                <button @click="activeTab = 'rules'"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition"
+                        :class="activeTab === 'rules' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400 hover:text-white'">
+                    3. Таблица ударов и Правила
                 </button>
-            </div>
+            </nav>
         </header>
 
         <!-- ========================================================= -->
-        <!-- МОДУЛЬ 1: КАЛЬКУЛЯТОР ОТРЯДОВ С ЖЕСТКИМ КОНТРОЛЕМ БЮДЖЕТА -->
+        <!-- ВКЛАДКА 1: НАБОР ОТРЯДОВ (ЧИСТЫЙ 2-КОЛОНОЧНЫЙ ИНТЕРФЕЙС) -->
         <!-- ========================================================= -->
-        <div v-if="activeTab === 'builder'" class="space-y-6">
+        <div v-if="activeTab === 'draft'" class="space-y-4">
 
-            <!-- Панель настроек формата партии -->
-            <div class="ui-panel rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row items-center justify-between gap-4">
-                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                    <span class="text-xs uppercase tracking-widest font-bold" style="color: var(--accent)">Формат боя:</span>
-                    
-                    <div class="flex gap-1.5 p-1 rounded-xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                        <button @click="gameMode = 'mini'" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition"
-                                :style="gameMode === 'mini' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
-                            Мини-бой (12🪙 / 11🥈)
-                        </button>
-                        <button @click="gameMode = 'classic'" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition"
-                                :style="gameMode === 'classic' ? 'background: var(--accent); color: #121110' : 'color: var(--text-muted)'">
-                            Классика (24🪙 / 22🥈)
-                        </button>
-                    </div>
-
-                    <!-- Тумблер бонуса 2-му игроку -->
-                    <label class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer select-none ui-input">
-                        <input type="checkbox" v-model="secondPlayerBonus" class="accent-amber-500">
-                        <span>Бонус 2-му игроку (+1🪙/+1🥈 за 2-й ход)</span>
-                    </label>
-
-                    <!-- Тумблер штрафа за стихии -->
-                    <label class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer select-none ui-input"
-                           title="Первая стихия (и Нейтральные) бесплатно. Каждая новая стихия в отряде уменьшает доступное Золото на 1 кристалл.">
-                        <input type="checkbox" v-model="elementPenaltyEnabled" class="accent-amber-500">
-                        <span>Штраф за стихии (-1🪙 за доп. стихию)</span>
-                    </label>
-                </div>
-
-                <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
-                    <button @click="startBattle" 
-                            class="w-full lg:w-auto px-6 py-3 rounded-xl text-xs sm:text-sm font-extrabold shadow-lg transition hover:scale-[1.02] flex items-center justify-center gap-2"
-                            style="background: var(--accent); color: #121110">
-                        <span>⚔️ Перейти к Столу Боя с этими отрядами!</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Подсказка по механике перелива кристаллов -->
-            <div class="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs flex flex-wrap items-center justify-between gap-2 text-amber-200/90">
-                <div>
-                    💡 <strong>Правило кристаллов «Берсерка»:</strong> Элитные карты (🪙) покупаются <u>только за Золото</u>. Рядовые карты (🥈) тратят Серебро, а если Серебро закончилось — остаток автоматически оплачивается вашим свободным Золотом (1 к 1)!
-                </div>
-                <div class="text-[11px] opacity-80">Лимит отряда: до 15 карт (не более 3 копий одной карты)</div>
-            </div>
-
-            <!-- Две колонки игроков (Игрок 1 и Игрок 2) -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Верхняя панель настроек формата и переключения Игрока 1 / Игрока 2 -->
+            <div class="panel rounded-2xl p-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
                 
-                <!-- КАРТОЧКА ОТРЯДА (Рендерим для Игрока 1 и Игрока 2) -->
-                <div v-for="pIdx in [1, 2]" :key="'builder_p' + pIdx" class="ui-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-2xl">
-                    <div>
-                        <!-- Заголовок и имя игрока -->
-                        <div class="flex flex-wrap justify-between items-center gap-2 mb-4 pb-3" style="border-bottom: 1px solid var(--border-color)">
+                <!-- Переключатель Игрок 1 / Игрок 2 -->
+                <div class="grid grid-cols-2 gap-2.5 flex-1">
+                    <div v-for="(p, idx) in players" :key="p.id"
+                         @click="activeDraftPlayer = idx"
+                         class="p-3 rounded-xl border cursor-pointer transition flex items-center justify-between gap-3"
+                         :class="activeDraftPlayer === idx 
+                            ? 'bg-amber-500/10 border-amber-500/70' 
+                            : 'bg-black/25 border-white/10 hover:border-white/25'">
+                        <div class="min-w-0">
                             <div class="flex items-center gap-2">
-                                <span class="text-lg">🛡️</span>
-                                <input type="text" v-model="playerNames[pIdx]" 
-                                       class="bg-transparent font-fantasy text-lg sm:text-xl font-bold focus:outline-none border-b border-transparent focus:border-amber-400"
-                                       style="color: var(--accent-bright)">
-                                <span class="text-xs px-2 py-0.5 rounded-md bg-white/5" style="color: var(--text-muted)">
-                                    {{ getArmy(pIdx).length }} / 15 карт
+                                <span class="w-2 h-2 rounded-full" :class="activeDraftPlayer === idx ? 'bg-amber-400' : 'bg-stone-600'"></span>
+                                <input type="text" v-model="p.name" @click.stop
+                                       class="bg-transparent font-bold text-sm focus:outline-none focus:border-b border-amber-400 w-28 sm:w-36 truncate"
+                                       :title="'Нажмите, чтобы переименовать'">
+                            </div>
+                            <div class="text-[11px] text-stone-400 mt-1">
+                                Карт: <strong class="text-white">{{ getPlayerCardCount(idx) }} / 15</strong>
+                                <span v-if="elementPenaltyOn && getElementPenalty(idx) > 0" class="text-rose-400 ml-2">
+                                    • Штраф стихий: −{{ getElementPenalty(idx) }}🪙
                                 </span>
                             </div>
-                            <button v-if="getArmy(pIdx).length > 0" @click="clearArmy(pIdx)" class="text-xs text-rose-400 hover:underline font-semibold">
-                                Очистить отряд ×
-                            </button>
                         </div>
 
-                        <!-- Панель кошелька: ОСТАЛОСЬ ЗОЛОТА и ОСТАЛОСЬ СЕРЕБРА -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
-                            <!-- Золотой кошелек -->
-                            <div class="p-3 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                                <div class="flex justify-between items-center text-xs mb-1.5">
-                                    <span class="font-semibold text-amber-300">🪙 Осталось Золота:</span>
-                                    <span class="text-base font-extrabold" :class="getWallet(pIdx).goldRemaining === 0 ? 'text-amber-500' : 'text-white'">
-                                        {{ getWallet(pIdx).goldRemaining }} <span class="text-xs font-normal opacity-60">из {{ getWallet(pIdx).maxGold }}</span>
-                                    </span>
-                                </div>
-                                <div class="h-2.5 rounded-full overflow-hidden bg-black/50 p-0.5">
-                                    <div class="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-300 transition-all duration-300"
-                                         :style="{ width: Math.min(100, (getWallet(pIdx).goldSpentTotal / getWallet(pIdx).maxGold) * 100) + '%' }"></div>
-                                </div>
-                                <div class="mt-1.5 flex flex-wrap justify-between text-[11px]" style="color: var(--text-muted)">
-                                    <span>Элита: {{ getWallet(pIdx).eliteGoldCost }}🪙</span>
-                                    <span v-if="getWallet(pIdx).silverSpilloverToGold > 0" class="text-amber-300 font-semibold">
-                                        +{{ getWallet(pIdx).silverSpilloverToGold }}🪙 на серебро
-                                    </span>
-                                    <span v-if="getWallet(pIdx).elementPenalty > 0" class="text-rose-400 font-semibold">
-                                        Штраф стихий: -{{ getWallet(pIdx).elementPenalty }}🪙
-                                    </span>
+                        <!-- Остаток кристаллов игрока -->
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div class="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-right">
+                                <div class="text-[10px] text-amber-300/80 uppercase">Золото</div>
+                                <div class="text-sm font-extrabold text-amber-300">
+                                    {{ getWallet(idx).goldLeft }} <span class="text-[11px] font-normal opacity-60">/ {{ getWallet(idx).maxGold }}</span>
                                 </div>
                             </div>
-
-                            <!-- Серебряный кошелек -->
-                            <div class="p-3 rounded-2xl" style="background: var(--input-bg); border: 1px solid var(--border-color)">
-                                <div class="flex justify-between items-center text-xs mb-1.5">
-                                    <span class="font-semibold text-slate-300">🥈 Осталось Серебра:</span>
-                                    <span class="text-base font-extrabold" :class="getWallet(pIdx).silverRemaining === 0 ? 'text-slate-400' : 'text-white'">
-                                        {{ getWallet(pIdx).silverRemaining }} <span class="text-xs font-normal opacity-60">из {{ getWallet(pIdx).maxSilver }}</span>
-                                    </span>
-                                </div>
-                                <div class="h-2.5 rounded-full overflow-hidden bg-black/50 p-0.5">
-                                    <div class="h-full rounded-full bg-gradient-to-r from-slate-500 to-slate-200 transition-all duration-300"
-                                         :style="{ width: Math.min(100, (getWallet(pIdx).silverUsedFromPool / getWallet(pIdx).maxSilver) * 100) + '%' }"></div>
-                                </div>
-                                <div class="mt-1.5 flex justify-between text-[11px]" style="color: var(--text-muted)">
-                                    <span>Рядовые карты: {{ getWallet(pIdx).regularSilverCost }}🥈</span>
-                                    <span v-if="getWallet(pIdx).silverRemaining === 0 && getWallet(pIdx).goldRemaining > 0" class="text-emerald-400">
-                                        Доступно {{ getWallet(pIdx).goldRemaining }}🪙 взамен 🥈
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Активные стихии отряда -->
-                        <div v-if="getWallet(pIdx).elementsList.length > 0" class="flex flex-wrap items-center gap-1.5 mb-3 text-[11px]">
-                            <span style="color: var(--text-muted)">Стихии в отряде:</span>
-                            <span v-for="el in getWallet(pIdx).elementsList" :key="el" 
-                                  class="px-2 py-0.5 rounded-md font-semibold bg-amber-500/15 border border-amber-500/30 text-amber-200">
-                                {{ el }}
-                            </span>
-                        </div>
-
-                        <!-- Список набранных в отряд карт -->
-                        <div class="space-y-2 mb-5 max-h-[320px] overflow-y-auto pr-1">
-                            <div v-if="getArmy(pIdx).length === 0" class="text-center py-10 rounded-2xl border border-dashed border-white/10 text-xs" style="color: var(--text-muted)">
-                                В отряде пока нет бойцов. Добавьте карты из поиска ниже!
-                            </div>
-
-                            <div v-for="(card, idx) in getArmy(pIdx)" :key="card.cardId + '_' + idx"
-                                 class="p-2.5 rounded-xl flex items-center justify-between gap-3 bg-black/35 border border-white/10 hover:border-amber-500/40 transition">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <img :src="card.imageUrl" class="w-10 h-14 object-cover rounded-lg shrink-0">
-                                    <div class="min-w-0 text-left">
-                                        <div class="font-bold text-xs sm:text-sm truncate">{{ card.name }}</div>
-                                        <div class="flex flex-wrap items-center gap-2 text-[11px] mt-0.5" style="color: var(--text-muted)">
-                                            <span class="text-amber-400 font-semibold">#{{ card.number }}</span>
-                                            <span>• {{ card.element }}</span>
-                                            <span>• ❤️ {{ card.maxHp }}</span>
-                                            <span>• 🗡️ {{ card.strike }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold"
-                                          :class="card.isElite ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-500/20 text-slate-200 border border-slate-400/30'">
-                                        {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
-                                    </span>
-                                    <button @click="removeFromArmy(pIdx, idx)" 
-                                            class="w-7 h-7 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 flex items-center justify-center font-bold text-sm transition"
-                                            title="Убрать из отряда">
-                                        −
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Блок поиска и добавления карт в отряд (с жесткой проверкой бюджета) -->
-                    <div class="pt-4" style="border-top: 1px solid var(--border-color)">
-                        <div class="flex flex-col sm:flex-row gap-2 mb-2.5">
-                            <input type="text" v-model="searchQueries[pIdx]" 
-                                   placeholder="🔍 Поиск по имени или номеру (#91)..." 
-                                   class="ui-input min-w-0 flex-1 rounded-xl px-3.5 py-2 text-xs">
-                            
-                            <select v-model="elementFilters[pIdx]" class="ui-input rounded-xl px-2.5 py-2 text-xs">
-                                <option value="ALL">Все стихии</option>
-                                <option value="Степи">Степи</option>
-                                <option value="Горы">Горы</option>
-                                <option value="Леса">Леса</option>
-                                <option value="Болота">Болота</option>
-                                <option value="Тьма">Тьма</option>
-                                <option value="Нейтральная">Нейтральная</option>
-                            </select>
-
-                            <select v-model="poolSourceMode" class="ui-input rounded-xl px-2.5 py-2 text-xs" title="Фильтр базы (без лимита копий)">
-                                <option value="ALL">Вся база ({{ cards.length }})</option>
-                                <option value="OWNED">Отмеченные в альбоме ({{ ownedCardIdsCount }})</option>
-                            </select>
-                        </div>
-
-                        <!-- Список карт для выбора -->
-                        <div class="max-h-56 overflow-y-auto space-y-1.5 p-1.5 rounded-2xl bg-black/45 border border-white/10">
-                            <div v-for="card in getFilteredPool(pIdx)" :key="card.cardId"
-                                 class="p-2 rounded-xl text-xs flex items-center justify-between gap-2 border border-transparent hover:border-white/10 transition"
-                                 :class="canAffordCard(pIdx, card).allowed ? 'bg-white/[0.03]' : 'opacity-45 bg-black/20'">
-                                
-                                <div class="flex items-center gap-2.5 min-w-0">
-                                    <img :src="card.imageUrl" class="w-8 h-11 object-cover rounded shrink-0">
-                                    <div class="min-w-0">
-                                        <div class="font-bold truncate flex items-center gap-1.5">
-                                            <span class="text-amber-400">#{{ card.number }}</span>
-                                            <span class="truncate">{{ card.name }}</span>
-                                        </div>
-                                        <div class="text-[10px] opacity-75 truncate">
-                                            {{ card.element }} • {{ card.set }} • ❤️{{ card.maxHp }} 🗡️{{ card.strike }}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span class="px-2 py-0.5 rounded text-[11px] font-bold"
-                                          :class="card.isElite ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-500/20 text-slate-300'">
-                                        {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
-                                    </span>
-
-                                    <button @click="addToArmy(pIdx, card)"
-                                            :disabled="!canAffordCard(pIdx, card).allowed"
-                                            class="px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition whitespace-nowrap"
-                                            :class="canAffordCard(pIdx, card).allowed 
-                                                ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 cursor-pointer shadow' 
-                                                : 'bg-stone-800 text-stone-500 cursor-not-allowed border border-white/5'">
-                                        {{ canAffordCard(pIdx, card).reason }}
-                                    </button>
+                            <div class="px-2.5 py-1 rounded-lg bg-slate-400/10 border border-slate-400/25 text-right">
+                                <div class="text-[10px] text-slate-300/80 uppercase">Серебро</div>
+                                <div class="text-sm font-extrabold text-slate-200">
+                                    {{ getWallet(idx).silverLeft }} <span class="text-[11px] font-normal opacity-60">/ {{ getWallet(idx).maxSilver }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-            </div>
-        </div>
+                <!-- Настройки лимита кристаллов и кнопка старта боя -->
+                <div class="flex flex-wrap items-center justify-between lg:justify-end gap-2.5 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
+                    <select v-model="gamePreset" class="ui-input rounded-xl px-3 py-2 text-xs font-semibold">
+                        <option value="mini">Мини-бой (12🪙 / 11🥈)</option>
+                        <option value="classic">Классика 1-й/2-й (24/22 и 25/23)</option>
+                        <option value="equal24">Равный стандарт (24🪙 / 22🥈 обоим)</option>
+                    </select>
 
-        <!-- ========================================================= -->
-        <!-- МОДУЛЬ 2: СТОЛ БОЯ (ДВЕ КОЛОНКИ: СЛЕВА И СПРАВА)          -->
-        <!-- ========================================================= -->
-        <div v-if="activeTab === 'battle'" class="space-y-6">
-            
-            <!-- Верхний пульт управления боем -->
-            <div class="ui-panel rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <div class="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-fantasy font-bold text-lg">
-                        Ход #{{ turnNumber }}
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-sm sm:text-base">Активный Стол Боя</h3>
-                        <p class="text-xs" style="color: var(--text-muted)">
-                            Отмечайте раны, яд, фишки и поворачивайте (закрывайте) походивших существ в один клик
-                        </p>
-                    </div>
-                </div>
+                    <label class="ui-input px-3 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer select-none"
+                           title="В классике каждая дополнительная стихия сверх первой уменьшает запас золота на 1">
+                        <input type="checkbox" v-model="elementPenaltyOn" class="accent-amber-500">
+                        <span>Штраф стихий</span>
+                    </label>
 
-                <div class="flex flex-wrap items-center justify-center gap-2.5">
-                    <button @click="openNewTurnForPlayer(1)" 
-                            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 transition">
-                        🔄 Начать ход: {{ playerNames[1] }} (Открыть все)
-                    </button>
-                    <button @click="openNewTurnForPlayer(2)" 
-                            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-600/25 hover:bg-amber-600/40 text-amber-300 border border-amber-500/40 transition">
-                        🔄 Начать ход: {{ playerNames[2] }} (Открыть все)
-                    </button>
-                    <button @click="resetAllBattleStats" 
-                            class="ui-input px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-rose-400 transition">
-                        ♻️ Сбросить бой
+                    <button @click="startBattleFromDraft"
+                            class="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-stone-950 transition shadow-lg">
+                        ⚔️ В бой →
                     </button>
                 </div>
             </div>
 
-            <!-- Две колонки бойцов (Игрок 1 слева, Игрок 2 справа) -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Основная рабочая область: Слева поиск карт (7 колонок), Справа отряд активного игрока (5 колонок) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                 
-                <div v-for="pIdx in [1, 2]" :key="'battle_col_' + pIdx" class="ui-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
-                    <div>
-                        <div class="flex items-center justify-between mb-4 pb-3" style="border-bottom: 1px solid var(--border-color)">
-                            <div>
-                                <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">
-                                    ⚔️ {{ playerNames[pIdx] }}
-                                </h3>
-                                <p class="text-xs" style="color: var(--text-muted)">
-                                    В строю: <strong class="text-emerald-400">{{ getAliveFighters(pIdx).length }}</strong> • 
-                                    На кладбище: <strong class="text-rose-400">{{ getDeadFighters(pIdx).length }}</strong>
-                                </p>
-                            </div>
-                            <button @click="untapAllPlayerCards(pIdx)" class="ui-input px-3 py-1.5 rounded-xl text-xs font-bold hover:border-emerald-400 transition">
-                                🟢 Открыть все карты
-                            </button>
-                        </div>
+                <!-- ЛЕВАЯ КОЛОНКА: КАТАЛОГ КАРТ (7 колонок) -->
+                <div class="lg:col-span-7 panel rounded-2xl p-4 space-y-3.5">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="text-sm font-bold text-stone-200">
+                            Каталог карт <span class="text-stone-500 font-normal">({{ filteredCatalog.length }})</span>
+                        </h2>
+                        <label class="text-xs text-stone-400 flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" v-model="onlyMyAlbumCards" class="accent-amber-500">
+                            <span>Только отмеченные в моём Альбоме</span>
+                        </label>
+                    </div>
 
-                        <!-- Пустое состояние -->
-                        <div v-if="getBattleList(pIdx).length === 0" class="text-center py-14">
-                            <p class="text-sm font-semibold mb-2">На поле боя пока нет существ</p>
-                            <p class="text-xs mb-4" style="color: var(--text-muted)">Наберите отряд в первом модуле и нажмите «Перейти к Столу Боя»</p>
-                            <button @click="activeTab = 'builder'" class="px-4 py-2 rounded-xl text-xs font-bold" style="background: var(--accent); color: #121110">
-                                ← К набору отрядов
-                            </button>
-                        </div>
+                    <!-- Фильтры каталога в одну компактную строку -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <input type="text" v-model="searchQuery" placeholder="Поиск по имени или #..." 
+                               class="ui-input col-span-2 rounded-xl px-3 py-1.5 text-xs">
+                        
+                        <select v-model="filterElement" class="ui-input rounded-xl px-2.5 py-1.5 text-xs">
+                            <option value="ALL">Все стихии</option>
+                            <option value="Степи">Степи</option>
+                            <option value="Горы">Горы</option>
+                            <option value="Леса">Леса</option>
+                            <option value="Болота">Болота</option>
+                            <option value="Тьма">Тьма</option>
+                            <option value="Нейтральная">Нейтральная</option>
+                        </select>
 
-                        <!-- Живые бойцы в строю -->
-                        <div class="space-y-3.5">
-                            <div v-for="f in getAliveFighters(pIdx)" :key="f.instanceId"
-                                 class="p-3.5 rounded-2xl border transition-all duration-300"
-                                 :class="{ 'fighter-closed': f.isExhausted }"
-                                 style="background: var(--input-bg); border-color: var(--border-color)">
-                                
-                                <div class="flex flex-col sm:flex-row items-center justify-between gap-3.5">
-                                    <!-- Миниатюра (поворачивается при закрытии) и Статы -->
-                                    <div class="flex items-center gap-3.5 w-full sm:w-auto">
-                                        <div class="w-14 h-20 flex items-center justify-center shrink-0">
-                                            <img :src="f.imageUrl" class="w-14 h-20 object-cover rounded-xl shadow-md transition-transform duration-300 fighter-thumb">
-                                        </div>
-                                        <div class="min-w-0 flex-1 text-left">
-                                            <div class="flex items-center gap-2">
-                                                <span class="font-bold text-sm sm:text-base truncate">{{ f.name }}</span>
-                                                <span v-if="f.isExhausted" class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold">ЗАКРЫТ 🔄</span>
-                                            </div>
-                                            <div class="text-xs mt-0.5 flex flex-wrap items-center gap-2" style="color: var(--text-muted)">
-                                                <span class="text-amber-400 font-semibold">🗡️ Удар: {{ f.strike }}</span>
-                                                <span>• 🥾 Шаги: {{ f.steps || 1 }}</span>
-                                                <span>• {{ f.element }}</span>
-                                            </div>
+                        <select v-model="filterCurrency" class="ui-input rounded-xl px-2.5 py-1.5 text-xs">
+                            <option value="ALL">🪙 + 🥈 Все</option>
+                            <option value="GOLD">🪙 Только Элита (Золото)</option>
+                            <option value="SILVER">🥈 Только Рядовые (Серебро)</option>
+                        </select>
+                    </div>
 
-                                            <!-- Полоска жизней -->
-                                            <div class="mt-2 w-full sm:w-52">
-                                                <div class="flex justify-between text-xs font-bold mb-1">
-                                                    <span>❤️ Жизни:</span>
-                                                    <span :class="f.hp <= 3 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'">
-                                                        {{ f.hp }} / {{ f.maxHp }}
-                                                    </span>
-                                                </div>
-                                                <div class="h-2.5 rounded-full overflow-hidden bg-black/60 p-0.5">
-                                                    <div class="h-full rounded-full transition-all duration-300"
-                                                         :class="f.hp / f.maxHp > 0.5 ? 'bg-emerald-500' : (f.hp / f.maxHp > 0.25 ? 'bg-amber-500' : 'bg-rose-500')"
-                                                         :style="{ width: Math.max(0, Math.min(100, (f.hp / f.maxHp) * 100)) + '%' }"></div>
-                                                </div>
-                                            </div>
-                                        </div>
+                    <!-- Сетка карт каталога (компактная и чистая) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[620px] overflow-y-auto pr-1">
+                        <div v-for="card in filteredCatalog.slice(0, 90)" :key="card.cardId"
+                             class="card-box rounded-xl p-2.5 flex flex-col justify-between gap-2">
+                            
+                            <div class="flex items-start gap-2.5 cursor-pointer" @click="inspectCard = card">
+                                <img :src="card.imageUrl" :alt="card.name" class="w-12 h-16 object-cover rounded-lg shrink-0 bg-black/40">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-[10px] font-bold text-stone-400">#{{ card.number }}</span>
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold"
+                                              :class="card.isElite ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-400/15 text-slate-200'">
+                                            {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
+                                        </span>
                                     </div>
-
-                                    <!-- Кнопки управления ХП и Поворотом -->
-                                    <div class="flex flex-col items-end gap-2 w-full sm:w-auto justify-between">
-                                        <!-- Быстрые кнопки урона и лечения -->
-                                        <div class="flex items-center gap-1">
-                                            <button @click="changeHp(f, -3)" class="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 font-bold text-xs" title="Сильный урон -3">−3</button>
-                                            <button @click="changeHp(f, -2)" class="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 font-bold text-xs" title="Средний урон -2">−2</button>
-                                            <button @click="changeHp(f, -1)" class="w-7 h-7 rounded-lg bg-rose-500/30 hover:bg-rose-500/50 text-rose-200 font-extrabold text-sm">−</button>
-                                            <button @click="changeHp(f, 1)" class="w-7 h-7 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-200 font-extrabold text-sm">+</button>
-                                            <button @click="changeHp(f, 2)" class="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 font-bold text-xs">+2</button>
-                                        </div>
-
-                                        <!-- Счетчики Фишек / Яда и Кнопка Закрытия -->
-                                        <div class="flex flex-wrap items-center gap-1.5">
-                                            <!-- Фишки -->
-                                            <div class="flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/15 border border-sky-500/30 text-[11px] text-sky-300" title="Фишки на карте">
-                                                <span>🔵 {{ f.tokens }}</span>
-                                                <button @click="f.tokens = Math.max(0, f.tokens - 1)" class="hover:text-white px-1 font-bold">−</button>
-                                                <button @click="f.tokens++" class="hover:text-white px-1 font-bold">+</button>
-                                            </div>
-
-                                            <!-- Яд -->
-                                            <div class="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/15 border border-purple-500/30 text-[11px] text-purple-300" title="Отравление (раны в начале хода)">
-                                                <span>☠️ {{ f.poison }}</span>
-                                                <button @click="f.poison = Math.max(0, f.poison - 1)" class="hover:text-white px-1 font-bold">−</button>
-                                                <button @click="f.poison++" class="hover:text-white px-1 font-bold">+</button>
-                                            </div>
-
-                                            <!-- Поворот (Открыт / Закрыт) -->
-                                            <button @click="f.isExhausted = !f.isExhausted"
-                                                    class="px-3 py-1 rounded-lg text-xs font-bold border transition"
-                                                    :class="f.isExhausted 
-                                                        ? 'bg-amber-500/20 border-amber-400/50 text-amber-300' 
-                                                        : 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300'">
-                                                {{ f.isExhausted ? '🔄 Открыть' : '💤 Походил' }}
-                                            </button>
-
-                                            <button @click="f.hp = 0" class="px-2 py-1 rounded-lg bg-white/5 hover:bg-rose-500/30 text-xs" title="Отправить на кладбище">
-                                                💀
-                                            </button>
-                                        </div>
+                                    <div class="text-xs font-bold text-white truncate mt-0.5" :title="card.name">{{ card.name }}</div>
+                                    <div class="text-[10px] text-stone-400 truncate">{{ card.element }}</div>
+                                    <div v-if="card.life" class="text-[10px] text-emerald-400/90 mt-0.5">
+                                        ❤️ {{ card.life }} <span v-if="card.move" class="text-stone-400 ml-1">• 🥾 {{ card.move }}</span>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Кладбище отряда (Погибшие существа) -->
-                        <div v-if="getDeadFighters(pIdx).length > 0" class="mt-6 pt-4" style="border-top: 1px dashed var(--border-color)">
-                            <div class="text-xs font-bold uppercase tracking-wider text-rose-400/90 mb-2.5 flex items-center gap-1.5">
-                                <span>💀 Кладбище ({{ getDeadFighters(pIdx).length }})</span>
-                            </div>
-                            <div class="space-y-2">
-                                <div v-for="dead in getDeadFighters(pIdx)" :key="dead.instanceId"
-                                     class="p-2.5 rounded-xl bg-black/50 border border-white/5 flex items-center justify-between gap-3 opacity-65">
-                                    <div class="flex items-center gap-2.5 min-w-0">
-                                        <img :src="dead.imageUrl" class="w-8 h-11 object-cover rounded grayscale shrink-0">
-                                        <div class="truncate text-xs">
-                                            <div class="font-bold line-through truncate">{{ dead.name }}</div>
-                                            <div class="text-[10px] text-rose-400">Погиб в бою (0 / {{ dead.maxHp }} ❤️)</div>
-                                        </div>
+                            <button @click="addCardToSquad(activeDraftPlayer, card)"
+                                    :disabled="!canAddCard(activeDraftPlayer, card).ok"
+                                    class="w-full py-1.5 px-2 rounded-lg text-[11px] font-bold transition"
+                                    :class="canAddCard(activeDraftPlayer, card).ok
+                                        ? 'bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/30'
+                                        : 'bg-white/5 text-stone-500 cursor-not-allowed'">
+                                {{ canAddCard(activeDraftPlayer, card).label }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ПРАВАЯ КОЛОНКА: ТЕКУЩИЙ ОТРЯД ВЫБРАННОГО ИГРОКА (5 колонок) -->
+                <div class="lg:col-span-5 panel rounded-2xl p-4 space-y-3.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-amber-300">
+                                Отряд: {{ players[activeDraftPlayer].name }}
+                            </h2>
+                            <p class="text-[11px] text-stone-400">
+                                Стихии в отряде: {{ getPlayerElements(activeDraftPlayer).join(', ') || 'пока нет' }}
+                            </p>
+                        </div>
+                        <button v-if="players[activeDraftPlayer].squad.length > 0"
+                                @click="clearSquad(activeDraftPlayer)"
+                                class="text-xs text-rose-400 hover:underline">
+                            Очистить
+                        </button>
+                    </div>
+
+                    <!-- Подсказка, если золото пошло на оплату серебряных карт -->
+                    <div v-if="getWallet(activeDraftPlayer).goldSpentOnSilver > 0"
+                         class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
+                        💡 Серебро закончилось: <strong>{{ getWallet(activeDraftPlayer).goldSpentOnSilver }} 🪙 золота</strong> автоматически потрачено на рядовые карты (по правилам 1 к 1).
+                    </div>
+
+                    <div v-if="players[activeDraftPlayer].squad.length === 0" 
+                         class="py-16 text-center text-xs text-stone-500 border border-dashed border-white/10 rounded-xl">
+                        Выберите карты слева, чтобы добавить их в отряд {{ players[activeDraftPlayer].name }}
+                    </div>
+
+                    <!-- Список набранных карт -->
+                    <div v-else class="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+                        <div v-for="item in players[activeDraftPlayer].squad" :key="item.card.cardId"
+                             class="card-box rounded-xl p-2.5 flex items-center justify-between gap-3">
+                            
+                            <div class="flex items-center gap-2.5 min-w-0 cursor-pointer" @click="inspectCard = item.card">
+                                <img :src="item.card.imageUrl" class="w-10 h-14 object-cover rounded-lg shrink-0">
+                                <div class="min-w-0">
+                                    <div class="text-xs font-bold text-white truncate">{{ item.card.name }}</div>
+                                    <div class="text-[11px] text-stone-400">
+                                        {{ item.card.element }} • 
+                                        <span :class="item.card.isElite ? 'text-amber-300 font-bold' : 'text-slate-300 font-bold'">
+                                            {{ item.card.cost }} {{ item.card.isElite ? '🪙' : '🥈' }} за шт.
+                                        </span>
                                     </div>
-                                    <button @click="dead.hp = dead.maxHp; dead.isExhausted = false" 
-                                            class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                        ♻️ Воскресить
-                                    </button>
                                 </div>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button @click="changeSquadQty(activeDraftPlayer, item.card.cardId, -1)"
+                                        class="ui-input w-7 h-7 rounded-lg font-bold text-sm hover:border-rose-400">−</button>
+                                <span class="text-xs font-extrabold w-6 text-center">{{ item.qty }}</span>
+                                <button @click="addCardToSquad(activeDraftPlayer, item.card)"
+                                        :disabled="!canAddCard(activeDraftPlayer, item.card).ok"
+                                        class="ui-input w-7 h-7 rounded-lg font-bold text-sm disabled:opacity-30">+</button>
                             </div>
                         </div>
                     </div>
@@ -531,599 +328,696 @@
         </div>
 
         <!-- ========================================================= -->
-        <!-- МОДУЛЬ 3: ПОЛНЫЙ СПРАВОЧНИК ПРАВИЛ, ЭТАПОВ ХОДА И ТЕРМИНОВ -->
+        <!-- ВКЛАДКА 2: СТОЛ БОЯ (МИНИМАЛИСТИЧНЫЙ И ЧИСТЫЙ ТРЕКЕР)      -->
         <!-- ========================================================= -->
-        <div v-if="activeTab === 'glossary'" class="space-y-6">
-
-            <!-- ЧАСТЬ А: КРАТКИЙ КУРС БОЯ (КАК ХОДИТЬ, АТАКОВАТЬ, СТРЕЛЯТЬ И ЗАЩИЩАТЬСЯ) -->
-            <div class="ui-panel rounded-3xl p-5 sm:p-7 shadow-2xl">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4" style="border-bottom: 1px solid var(--border-color)">
-                    <div>
-                        <div class="text-xs uppercase tracking-widest text-amber-400 font-bold">Базовая памятка игрока</div>
-                        <h2 class="font-fantasy text-xl sm:text-2xl font-bold" style="color: var(--accent-bright)">
-                            ⚔️ Краткий курс боя: Этапы хода, Атака, Стрельба и Защита
-                        </h2>
-                    </div>
-                    <button @click="showQuickRules = !showQuickRules" class="ui-input px-4 py-2 rounded-xl text-xs font-bold self-start sm:self-auto">
-                        {{ showQuickRules ? 'Свернуть памятку ▲' : 'Развернуть памятку ▼' }}
-                    </button>
+        <div v-if="activeTab === 'battle'" class="space-y-4">
+            
+            <!-- Верхняя панель управления раундом -->
+            <div class="panel rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="text-stone-400">Клик по миниатюре карты поворачивает её (<strong class="text-white">Открыта / Закрыта</strong>).</span>
                 </div>
-
-                <div v-if="showQuickRules" class="space-y-6">
-                    <!-- 5 карточек базовых правил -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        
-                        <div class="p-4 rounded-2xl bg-black/35 border border-white/10">
-                            <div class="text-amber-400 font-bold text-sm mb-1.5">1. Поле боя и Расстановка (3×5)</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                У каждого игрока поле <strong>5 клеток в ширину и 3 ряда в глубину</strong> (плюс отдельная зона 🪽 Полёта позади поля). 
-                                <br>• <strong>1-й ряд (Авангард):</strong> Ближний бой, принимает удар на себя.
-                                <br>• <strong>2-й и 3-й ряды (Тыл):</strong> Лучники, маги и поддержка. Карты расставляются взакрытую, затем одновременно вскрываются.
-                            </p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl bg-black/35 border border-white/10">
-                            <div class="text-amber-400 font-bold text-sm mb-1.5">2. Три фазы каждого хода</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                <strong>① Фаза начала хода:</strong> Все ваши закрытые (повернутые на 90°) карты становятся <em>открытыми</em>. Срабатывают <em>Регенерация</em> и <em>Яд (Отравление)</em>.
-                                <br><strong>② Основная фаза:</strong> Вы в любом порядке двигаете открытые карты, бьёте, стреляете и колдуете.
-                                <br><strong>③ Завершающая фаза:</strong> Конец временных эффектов, передача хода сопернику.
-                            </p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl bg-black/35 border border-amber-500/30">
-                            <div class="text-amber-300 font-bold text-sm mb-1.5">3. Главное правило закрытия (🔄)</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                Любое действие — <strong>передвижение на клетку (или несколько шагов), простой удар, выстрел, магия</strong> — требует <strong>закрытия карты</strong> (поворота на 90°). 
-                                <br>❗ <strong>Важно:</strong> Шагнув на новую клетку, карта сразу закрывается, поэтому обычное существо <u>не может в один ход подойти и ударить</u> (если у него нет способности <em>«Удар с разбега»</em>).
-                            </p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl bg-black/35 border border-white/10">
-                            <div class="text-emerald-400 font-bold text-sm mb-1.5">4. Как бить и защищаться (🗡️ Простой удар)</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                Открытое существо может ударить соседа (включая диагональ).
-                                <br>• <strong>Прикрытие союзника:</strong> Если вашу карту атакуют, ваша <strong>открытая соседняя карта</strong> может внезапно шагнуть на место цели (закрывшись за шаг), поменяться с ней местами и принять бой на себя!
-                                <br>• Оба игрока кидают кубик и смотрят результат по таблице 6×6 ниже. Защищающийся за сам факт защиты <u>не закрывается</u>!
-                            </p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl bg-black/35 border border-white/10">
-                            <div class="text-sky-400 font-bold text-sm mb-1.5">5. Как стрелять (🏹), метать (🎯) и бить разрядом (⚡)</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                Дальние атаки бьют через клетки (считать можно по прямым и диагоналям). Стреляющий закрывается, а цель <strong>не может дать сдачи в ответ</strong>!
-                                <br>• Если у стрелка указана одна цифра (напр. <em>Выстрел на 2</em>) — кубик не бросается. Если три цифры (<em>1-2-3</em>) — атакующий кидает 1 кубик (1–2 слабый, 3–4 средний, 5–6 сильный).
-                            </p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl bg-black/35 border border-white/10">
-                            <div class="text-purple-400 font-bold text-sm mb-1.5">6. Как победить в партии</div>
-                            <p class="text-xs leading-relaxed" style="color: var(--text-muted)">
-                                Партия продолжается до тех пор, пока на поле боя не будут уничтожены <strong>все существа одного из игроков</strong> (карты Местности и Артефактов не мешают победе). При желании можно играть до сдачи оппонента.
-                            </p>
-                        </div>
-
-                    </div>
-
-                    <!-- ОФИЦИАЛЬНАЯ ТАБЛИЦА ПРОСТОГО УДАРА (МАТРИЦА КУБИКОВ 6x6) -->
-                    <div class="p-4 sm:p-5 rounded-2xl bg-black/45 border border-amber-500/30">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                            <div>
-                                <h4 class="font-bold text-sm sm:text-base text-amber-300">🎲 Таблица простого удара (Разница бросков Атакующего и Защитника)</h4>
-                                <p class="text-xs" style="color: var(--text-muted)">
-                                    Оба игрока бросают по кубику (прибавляя свой ⚔️ Опыт в атаке или 🛡️ Опыт в защите). Если защищающийся был <strong>закрыт (повернут)</strong> до удара — он <u>не может нанести ответный удар</u> (вместо «Отв.» получается просто Промах атакующего).
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-center text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-white/5 text-amber-300">
-                                        <th class="p-2 border border-white/10 text-left">Атака ↓ \ Защита →</th>
-                                        <th class="p-2 border border-white/10">1</th>
-                                        <th class="p-2 border border-white/10">2</th>
-                                        <th class="p-2 border border-white/10">3</th>
-                                        <th class="p-2 border border-white/10">4</th>
-                                        <th class="p-2 border border-white/10">5</th>
-                                        <th class="p-2 border border-white/10">6</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="att in 6" :key="'row_' + att">
-                                        <td class="p-2 border border-white/10 font-extrabold text-amber-400 bg-white/5 text-left">
-                                            🎲 Атакующий: {{ att }}
-                                        </td>
-                                        <td v-for="def in 6" :key="'cell_' + att + '_' + def" 
-                                            class="p-2 border border-white/10 font-bold"
-                                            :class="getCombatCellClass(att - def)">
-                                            {{ getCombatCellLabel(att - def) }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-2.5 flex flex-wrap gap-4 text-[11px]" style="color: var(--text-muted)">
-                            <span><strong class="text-rose-400">СИЛЬНЫЙ</strong> — 3-я цифра удара</span>
-                            <span><strong class="text-amber-300">СРЕДНИЙ</strong> — 2-я цифра удара</span>
-                            <span><strong class="text-emerald-400">СЛАБЫЙ</strong> — 1-я цифра удара</span>
-                            <span><strong class="text-sky-300">ВЗАИМ. СЛАБ.</strong> — оба наносят слабый</span>
-                            <span><strong class="text-purple-300">ПРОМАХ / ОТВЕТ</strong> — защитник (если открыт) бьёт слабым в ответ</span>
-                        </div>
-                    </div>
+                <div class="flex items-center gap-2">
+                    <button @click="startNewTurn(0)" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition">
+                        🔄 Открыть карты: {{ players[0].name }}
+                    </button>
+                    <button @click="startNewTurn(1)" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition">
+                        🔄 Открыть карты: {{ players[1].name }}
+                    </button>
                 </div>
             </div>
 
-            <!-- ЧАСТЬ Б: ПОЛНАЯ ЭНЦИКЛОПЕДИЯ ЗНАЧКОВ, СВОЙСТВ И МЕХАНИК СЕТОВ (55+ СТАТЕЙ) -->
-            <div class="ui-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
-                <div class="flex flex-col md:flex-row items-center justify-between gap-3">
-                    <div>
-                        <h3 class="font-fantasy text-xl font-bold" style="color: var(--accent-bright)">
-                            📖 Энциклопедия терминов, значков и способностей ({{ filteredGlossary.length }})
-                        </h3>
-                        <p class="text-xs" style="color: var(--text-muted)">
-                            Включает базовые правила и все механики выпусков «Война стихий», «Гибель богов» и «Сердце Роя»
+            <!-- Две колонки Стола Боя (Игрок 1 слева, Игрок 2 справа) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div v-for="(p, pIdx) in players" :key="p.id" class="panel rounded-2xl p-4 space-y-3">
+                    
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <h3 class="font-bold text-base text-amber-300">{{ p.name }}</h3>
+                        <span class="text-xs text-stone-400">
+                            В строю: <strong class="text-emerald-400">{{ p.battleUnits.filter(u => !u.dead).length }}</strong>
+                            <span v-if="p.battleUnits.some(u => u.dead)" class="ml-2 text-stone-500">
+                                • Кладбище: {{ p.battleUnits.filter(u => u.dead).length }}
+                            </span>
+                        </span>
+                    </div>
+
+                    <div v-if="p.battleUnits.length === 0" class="py-12 text-center text-xs text-stone-500">
+                        Отряд пуст. Наберите карты во вкладке «1. Набор отрядов» и нажмите «⚔️ В бой».
+                    </div>
+
+                    <!-- Карточки бойцов -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div v-for="unit in p.battleUnits" :key="unit.uid"
+                             class="card-box rounded-xl p-3 flex flex-col justify-between gap-2.5 transition"
+                             :class="{ 'opacity-35 grayscale': unit.dead }">
+                            
+                            <!-- Верх: Превью (клик = поворот) + Имя и Статус -->
+                            <div class="flex items-center gap-3">
+                                <div @click="!unit.dead && (unit.tapped = !unit.tapped)"
+                                     class="relative w-12 h-16 shrink-0 cursor-pointer select-none"
+                                     title="Кликните, чтобы закрыть/открыть карту">
+                                    <img :src="unit.card.imageUrl" 
+                                         class="w-full h-full object-cover rounded-lg transition-transform duration-200"
+                                         :class="{ 'tapped-card': unit.tapped }">
+                                </div>
+
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-xs font-bold text-white truncate" @click="inspectCard = unit.card">{{ unit.card.name }}</span>
+                                    </div>
+
+                                    <!-- Статус активности -->
+                                    <div class="flex items-center gap-1.5 mt-1">
+                                        <button @click="unit.tapped = !unit.tapped" v-if="!unit.dead"
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold transition"
+                                                :class="unit.tapped ? 'bg-stone-700 text-stone-300' : 'bg-emerald-500/20 text-emerald-300'">
+                                            {{ unit.tapped ? '💤 Закрыт' : '🟢 Открыт' }}
+                                        </button>
+                                        <span v-if="unit.poison > 0" class="px-1.5 py-0.5 rounded bg-purple-500/25 text-purple-300 text-[10px] font-bold">
+                                            ☠️ Яд {{ unit.poison }}
+                                        </span>
+                                        <span v-if="unit.tokens > 0" class="px-1.5 py-0.5 rounded bg-sky-500/25 text-sky-300 text-[10px] font-bold">
+                                            🔵 {{ unit.tokens }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Полоска жизней -->
+                                    <div class="mt-2">
+                                        <div class="flex justify-between text-[11px] font-bold mb-1">
+                                            <span class="text-stone-400">Жизни</span>
+                                            <span :class="unit.hp <= 2 ? 'text-rose-400' : 'text-emerald-400'">
+                                                {{ unit.hp }} / {{ unit.maxHp }} ❤️
+                                            </span>
+                                        </div>
+                                        <div class="w-full h-1.5 bg-black/60 rounded-full overflow-hidden">
+                                            <div class="h-full bg-emerald-500 transition-all duration-200"
+                                                 :style="{ width: Math.min(100, Math.round((unit.hp / unit.maxHp) * 100)) + '%' }"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Низ: Чистые кнопки ХП и тоггл доп. жетонов -->
+                            <div class="flex items-center justify-between gap-1.5 pt-2 border-t border-white/5">
+                                <div class="flex items-center gap-1">
+                                    <button @click="changeHp(unit, -1)" class="ui-input px-2.5 py-1 rounded-lg text-xs font-bold hover:border-rose-500 text-rose-300">−1</button>
+                                    <button @click="changeHp(unit, -2)" class="ui-input px-2 py-1 rounded-lg text-xs font-bold hover:border-rose-500 text-rose-300">−2</button>
+                                    <button @click="changeHp(unit, -3)" class="ui-input px-2 py-1 rounded-lg text-xs font-bold hover:border-rose-500 text-rose-300">−3</button>
+                                    <button @click="changeHp(unit, 1)" class="ui-input px-2.5 py-1 rounded-lg text-xs font-bold hover:border-emerald-500 text-emerald-300">+1</button>
+                                </div>
+
+                                <div class="flex items-center gap-1">
+                                    <button @click="unit.showExtra = !unit.showExtra" 
+                                            class="ui-input px-2 py-1 rounded-lg text-[10px] text-stone-400 hover:text-white"
+                                            title="Жетоны яда и фишек">
+                                        ⚙️
+                                    </button>
+                                    <button @click="toggleDead(unit)" 
+                                            class="ui-input px-2 py-1 rounded-lg text-[10px]"
+                                            :title="unit.dead ? 'Воскресить' : 'Отправить на кладбище'">
+                                        {{ unit.dead ? '♻️' : '💀' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Скрытая микро-панель жетонов (открывается только по клику на ⚙️) -->
+                            <div v-if="unit.showExtra" class="p-2 rounded-lg bg-black/40 flex items-center justify-between text-[11px] gap-2">
+                                <div class="flex items-center gap-1">
+                                    <span>☠️ Яд:</span>
+                                    <button @click="unit.poison = Math.max(0, unit.poison - 1)" class="ui-input px-1.5 rounded">−</button>
+                                    <strong class="w-4 text-center">{{ unit.poison }}</strong>
+                                    <button @click="unit.poison++" class="ui-input px-1.5 rounded">+</button>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span>🔵 Фишки:</span>
+                                    <button @click="unit.tokens = Math.max(0, unit.tokens - 1)" class="ui-input px-1.5 rounded">−</button>
+                                    <strong class="w-4 text-center">{{ unit.tokens }}</strong>
+                                    <button @click="unit.tokens++" class="ui-input px-1.5 rounded">+</button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- ВКЛАДКА 3: ОФИЦИАЛЬНАЯ ТАБЛИЦА УДАРОВ И СПРАВОЧНИК ПРАВИЛ -->
+        <!-- ========================================================= -->
+        <div v-if="activeTab === 'rules'" class="space-y-6">
+
+            <!-- ВЕРХНИЙ БЛОК: ТОЧНАЯ ОФИЦИАЛЬНАЯ ТАБЛИЦА УДАРОВ + ПОДСВЕТКА БРОСКА -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Сама карточка «Таблица ударов» 1-в-1 по оригиналу -->
+                <div class="lg:col-span-7 panel rounded-2xl p-5 sm:p-6 border border-amber-500/30">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-white/10">
+                        <div>
+                            <h2 class="font-fantasy text-xl font-extrabold tracking-wide text-amber-300">ТАБЛИЦА УДАРОВ</h2>
+                            <p class="text-xs text-stone-400">Официальная таблица расчёта ближнего боя с ответными ударами</p>
+                        </div>
+                        <!-- Быстрый выбор кубиков для подсветки строки -->
+                        <div class="flex items-center gap-3 bg-black/40 p-2 rounded-xl border border-white/10">
+                            <div class="text-[11px]">
+                                <div class="text-stone-400 mb-1">🗡️ Нападающий:</div>
+                                <div class="flex gap-1">
+                                    <button v-for="n in 6" :key="'a'+n" @click="simAttacker = n"
+                                            class="w-6 h-6 rounded text-xs font-bold transition"
+                                            :class="simAttacker === n ? 'bg-amber-500 text-stone-950' : 'ui-input text-stone-400'">
+                                        {{ n }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-[11px]">
+                                <div class="text-stone-400 mb-1">🛡️ Отражающий:</div>
+                                <div class="flex gap-1">
+                                    <button v-for="n in 6" :key="'d'+n" @click="simDefender = n"
+                                            class="w-6 h-6 rounded text-xs font-bold transition"
+                                            :class="simDefender === n ? 'bg-sky-400 text-stone-950' : 'ui-input text-stone-400'">
+                                        {{ n }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Заголовки колонок -->
+                    <div class="grid grid-cols-12 text-[11px] font-bold uppercase tracking-wider text-stone-400 pb-2 px-3">
+                        <div class="col-span-4">Разница на кубике</div>
+                        <div class="col-span-4 text-center">Удар нападающего</div>
+                        <div class="col-span-4 text-center">Удар отражающего</div>
+                    </div>
+
+                    <!-- Секция 1: Больше выбросил нападающий -->
+                    <div class="mb-4">
+                        <div class="text-xs font-bold text-amber-400 mb-1.5 px-1">
+                            ▲ Больше выбросил нападающий (Атака > Защиты)
+                        </div>
+                        <div class="space-y-1">
+                            <div v-for="(row, rIdx) in attackerWinsRows" :key="'aw'+rIdx"
+                                 class="grid grid-cols-12 items-center py-2 px-3 rounded-xl text-xs transition"
+                                 :class="[
+                                    rIdx % 2 === 0 ? 'strike-row-odd' : 'strike-row-even',
+                                    isRowActive('attacker', row.diffNum) ? 'strike-row-active' : '',
+                                    isPrevRowChoice('attacker', row.diffNum) ? 'strike-row-prev' : ''
+                                 ]">
+                                <div class="col-span-4 font-extrabold text-sm text-white">{{ row.diffLabel }}</div>
+                                <div class="col-span-4 text-center font-bold" :class="strikeColor(row.atk)">{{ row.atk }}</div>
+                                <div class="col-span-4 text-center font-bold" :class="strikeColor(row.def)">{{ row.def }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Секция 2: Больше выбросил отражающий -->
+                    <div class="mb-4">
+                        <div class="text-xs font-bold text-sky-400 mb-1.5 px-1">
+                            ▼ Больше выбросил отражающий (Защита > Атаки)
+                        </div>
+                        <div class="space-y-1">
+                            <div v-for="(row, rIdx) in defenderWinsRows" :key="'dw'+rIdx"
+                                 class="grid grid-cols-12 items-center py-2 px-3 rounded-xl text-xs transition"
+                                 :class="[
+                                    rIdx % 2 === 0 ? 'strike-row-odd' : 'strike-row-even',
+                                    isRowActive('defender', row.diffNum) ? 'strike-row-active' : '',
+                                    isPrevRowChoice('defender', row.diffNum) ? 'strike-row-prev' : ''
+                                 ]">
+                                <div class="col-span-4 font-extrabold text-sm text-white">{{ row.diffLabel }}</div>
+                                <div class="col-span-4 text-center font-bold" :class="strikeColor(row.atk)">{{ row.atk }}</div>
+                                <div class="col-span-4 text-center font-bold" :class="strikeColor(row.def)">{{ row.def }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Секция 3: Одинаковые числа (Ничья) -->
+                    <div class="p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-2">
+                        <div class="text-xs font-bold text-stone-300">Если у обоих игроков выпали одинаковые числа:</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div class="p-2.5 rounded-lg border border-white/5"
+                                 :class="simAttacker === simDefender && simAttacker <= 4 ? 'strike-row-active' : 'bg-white/5'">
+                                <div class="text-sm font-extrabold text-amber-300">1, 2, 3, 4 <span class="text-[10px] font-normal text-stone-400">(или меньше)</span></div>
+                                <div class="text-xs text-stone-200 mt-0.5">Нападающий наносит <strong class="text-emerald-400">слабый удар</strong> (отражающий — промах).</div>
+                            </div>
+                            <div class="p-2.5 rounded-lg border border-white/5"
+                                 :class="simAttacker === simDefender && simAttacker >= 5 ? 'strike-row-active' : 'bg-white/5'">
+                                <div class="text-sm font-extrabold text-sky-300">5, 6 <span class="text-[10px] font-normal text-stone-400">(или больше)</span></div>
+                                <div class="text-xs text-stone-200 mt-0.5">Отражающий наносит <strong class="text-emerald-400">слабый удар</strong> (нападающий — промах).</div>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-amber-200/90 pt-1 leading-relaxed">
+                            💡 <strong>Правило сдвига строки (выделено зелёным пунктиром):</strong> При обмене ударами игрок с бо́льшим результатом броска (с учётом всех модификаторов) может по желанию свести результат к <strong>предыдущей строке</strong> того же блока таблицы (например, при разнице 2 в пользу атакующего выбрать строку «1»: нанести <em>слабый удар</em> вместо <em>среднего</em>, но избежать ответного слабого удара!).
                         </p>
                     </div>
-                    <input type="text" v-model="glossarySearch" 
-                           placeholder="🔍 Быстрый поиск (например: Броня, Рой, Разряд, Строй)..." 
-                           class="ui-input rounded-xl px-4 py-2.5 text-xs w-full md:w-80">
                 </div>
 
-                <!-- Категории справочника -->
-                <div class="flex flex-wrap gap-2">
-                    <button v-for="cat in glossaryCategories" :key="cat"
-                            @click="selectedGlossaryCategory = cat"
-                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition border"
-                            :class="selectedGlossaryCategory === cat 
-                                ? 'bg-amber-500 text-stone-950 border-amber-400' 
-                                : 'bg-black/30 text-stone-300 border-white/10 hover:border-amber-500/40'">
-                        {{ cat }}
-                    </button>
-                </div>
-            </div>
+                <!-- Правая колонка: Четкая шпаргалка по Фазам Хода и Защите (5 колонок) -->
+                <div class="lg:col-span-5 panel rounded-2xl p-5 space-y-4">
+                    <h3 class="font-fantasy text-lg font-bold text-amber-300">Краткая памятка хода</h3>
+                    
+                    <div class="space-y-3 text-xs leading-relaxed text-stone-300">
+                        <div class="p-3 rounded-xl bg-black/30 border border-white/5">
+                            <div class="font-bold text-white mb-1">1. Подготовка и Расстановка (Поле 5×3 + Полёт)</div>
+                            У каждого игрока 3 ряда по 5 клеток (1-й ряд — авангард, 3-й ряд — тыл) и отдельная зона Полёта. Карты выставляются в закрытую (рубашкой вверх), затем одновременно вскрываются. Между 1-ми рядами игроков в начале боя 1 ряд пустых клеток (расстояние в 1 шаг).
+                        </div>
 
-            <!-- Карточки терминов -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div v-for="item in filteredGlossary" :key="item.title" 
-                     class="ui-panel rounded-2xl p-5 flex flex-col justify-between hover:border-amber-500/50 transition">
-                    <div>
-                        <div class="flex items-start justify-between gap-2 mb-2">
-                            <div class="flex items-center gap-2.5">
-                                <span class="text-2xl shrink-0">{{ item.icon }}</span>
-                                <h4 class="font-bold text-sm sm:text-base leading-snug" style="color: var(--accent-bright)">{{ item.title }}</h4>
+                        <div class="p-3 rounded-xl bg-black/30 border border-white/5">
+                            <div class="font-bold text-white mb-1">2. Три фазы каждого хода</div>
+                            <ul class="list-disc list-inside space-y-1 text-stone-300">
+                                <li><strong>Фаза начала хода:</strong> Все ваши закрытые (повернутые) карты открываются. Срабатывают <em>Регенерация</em>, <em>Отравление</em> и эффекты «в начале хода».</li>
+                                <li><strong>Основная фаза:</strong> Вы передвигаете существ и объявляете действия (удары, выстрелы, магию) в любом порядке.</li>
+                                <li><strong>Завершающая фаза:</strong> Срабатывают эффекты «в конце хода», ход переходит к сопернику.</li>
+                            </ul>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-black/30 border border-white/5">
+                            <div class="font-bold text-white mb-1">3. Главное правило поворота (Закрытия карты)</div>
+                            Любое действие (удар, выстрел, разряд, лечение) <strong>закрывает</strong> (поворачивает на 90°) карту. Передвижение (даже на 1 клетку) тоже закрывает карту в момент окончания её движения или перед началом атаки другого существа. Поэтому обычное существо <strong>не может и походить, и ударить в один ход</strong> (если у него нет особенности <em>Удар с разбега</em> или <em>Валькирия</em>).
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-black/30 border border-white/5">
+                            <div class="font-bold text-white mb-1">4. Как работает Защита (Прикрытие союзника)</div>
+                            Когда вашу карту атакуют простым ударом или выстрелом, соседнее с ней (включая диагональ) <strong>открытое</strong> дружественное существо, у которого остался хотя бы 1 шаг, может <strong>назначиться защитником</strong>: они меняются местами, защитник тратит 1 шаг и принимает атаку на себя.
+                            <div class="text-amber-300 mt-1">
+                                Важно: При обмене местами перехвативший удар защитник обороняется пассивно (бросает кубик только чтобы снизить урон атакующего, но сам ответных ран нанести не может, если нет <em>Контрудара</em>).
                             </div>
                         </div>
-                        <p class="text-xs leading-relaxed" style="color: var(--text-muted)">{{ item.desc }}</p>
                     </div>
-                    <div class="mt-4 pt-2.5 flex items-center justify-between text-[10px] uppercase font-bold tracking-wider" style="border-top: 1px solid var(--border-color); color: var(--accent)">
-                        <span>{{ item.category }}</span>
-                        <span v-if="item.setTag" class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300">{{ item.setTag }}</span>
+                </div>
+
+            </div>
+
+            <!-- НИЖНИЙ БЛОК: ПОЛНЫЙ ПРОВЕРЕННЫЙ СПРАВОЧНИК ЗНАЧКОВ И ТЕРМИНОВ -->
+            <div class="panel rounded-2xl p-5 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h3 class="font-fantasy text-lg font-bold text-amber-300">Справочник значков и способностей ({{ filteredGlossary.length }})</h3>
+                        <p class="text-xs text-stone-400">Актуализировано по правилам перезапуска «Берсерка» (Война стихий — Гибель богов — Сердце Роя)</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="text" v-model="glossarySearch" placeholder="Найти термин (Броня, Рой, Яд)..."
+                               class="ui-input rounded-xl px-3 py-1.5 text-xs w-60">
+                        <select v-model="glossaryCategory" class="ui-input rounded-xl px-3 py-1.5 text-xs">
+                            <option value="ALL">Все категории</option>
+                            <option value="Значки">Значки на карте</option>
+                            <option value="Удары">Атаки и Удары</option>
+                            <option value="Защита">Защиты и Броня</option>
+                            <option value="Механики">Свойства и Сеты</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div v-for="item in filteredGlossary" :key="item.term"
+                         class="card-box rounded-xl p-3.5 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="font-bold text-sm text-amber-300">{{ item.icon }} {{ item.term }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-white/5 text-stone-400">{{ item.cat }}</span>
+                        </div>
+                        <p class="text-xs text-stone-300 leading-relaxed">{{ item.desc }}</p>
                     </div>
                 </div>
             </div>
 
+        </div>
+
+        <!-- Модалка быстрого осмотра карты по клику -->
+        <div v-if="inspectCard" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" @click="inspectCard = null">
+            <div class="panel rounded-2xl p-5 max-w-sm w-full flex flex-col items-center relative" @click.stop>
+                <button @click="inspectCard = null" class="ui-input absolute top-3 right-3 w-8 h-8 rounded-full font-bold">×</button>
+                <div class="text-xs text-amber-300 font-bold mb-1">{{ inspectCard.set }} #{{ inspectCard.number }}</div>
+                <h4 class="font-bold text-base mb-3 text-center">{{ inspectCard.name }}</h4>
+                <img :src="inspectCard.imageUrl" :alt="inspectCard.name" class="w-64 rounded-xl shadow-2xl mb-3">
+                <div class="text-xs text-stone-400 text-center">
+                    {{ inspectCard.element }} • {{ inspectCard.rarity }} • Стоимость: {{ inspectCard.cost }} {{ inspectCard.isElite ? '🪙 Золота' : '🥈 Серебра' }}
+                </div>
+            </div>
         </div>
 
     </div>
 
     <script>
-        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted } = Vue;
 
         createApp({
             setup() {
-                const activeTab = ref('builder');
+                const activeTab = ref('draft');
                 const cards = ref([]);
-                const inventory = ref({});
-                const showQuickRules = ref(true);
+                const albumInventory = ref({});
+                const inspectCard = ref(null);
 
-                // Настройки формата набора
-                const gameMode = ref('mini'); // 'mini' (12/11) | 'classic' (24/22)
-                const secondPlayerBonus = ref(true);
-                const elementPenaltyEnabled = ref(false);
-                const poolSourceMode = ref('ALL'); // 'ALL' | 'OWNED'
+                // Настройки драфта
+                const activeDraftPlayer = ref(0);
+                const gamePreset = ref('mini'); // 'mini' (12/11), 'classic' (24/22 & 25/23), 'equal24' (24/22)
+                const elementPenaltyOn = ref(true);
+                const onlyMyAlbumCards = ref(false);
+                const searchQuery = ref('');
+                const filterElement = ref('ALL');
+                const filterCurrency = ref('ALL');
+                const battleStarted = ref(false);
 
-                const playerNames = reactive({
-                    1: 'Отряд 1',
-                    2: 'Отряд 2'
-                });
+                // Универсальные профили игроков
+                const players = ref([
+                    { id: 1, name: 'Игрок 1', squad: [], battleUnits: [] },
+                    { id: 2, name: 'Игрок 2', squad: [], battleUnits: [] }
+                ]);
 
-                const armies = reactive({
-                    1: [],
-                    2: []
-                });
+                // Официальная таблица ударов (строго по фото памятки)
+                const simAttacker = ref(4);
+                const simDefender = ref(2);
 
-                const searchQueries = reactive({ 1: '', 2: '' });
-                const elementFilters = reactive({ 1: 'ALL', 2: 'ALL' });
+                const attackerWinsRows = [
+                    { diffNum: 1, diffLabel: '1', atk: 'слабый', def: 'промах' },
+                    { diffNum: 2, diffLabel: '2', atk: 'средний', def: 'слабый' },
+                    { diffNum: 3, diffLabel: '3', atk: 'средний', def: 'промах' },
+                    { diffNum: 4, diffLabel: '4', atk: 'сильный', def: 'слабый' },
+                    { diffNum: 5, diffLabel: '5+', atk: 'сильный', def: 'промах' }
+                ];
 
-                // Состояние Стола Боя
-                const turnNumber = ref(1);
-                const battleFighters = reactive({
-                    1: [],
-                    2: []
-                });
+                const defenderWinsRows = [
+                    { diffNum: 1, diffLabel: '1', atk: 'слабый', def: 'промах' },
+                    { diffNum: 2, diffLabel: '2', atk: 'промах', def: 'промах' },
+                    { diffNum: 3, diffLabel: '3', atk: 'промах', def: 'слабый' },
+                    { diffNum: 4, diffLabel: '4', atk: 'слабый', def: 'средний' },
+                    { diffNum: 5, diffLabel: '5+', atk: 'промах', def: 'средний' }
+                ];
 
-                // ==========================================
-                // ЗАГРУЗКА И НОРМАЛИЗАЦИЯ БАЗЫ КАРТ
-                // ==========================================
-                const enrichAndSanitizeCard = (c) => {
-                    let set = c.set || 'Война стихий';
-                    if (set.toLowerCase().includes('сердце роя')) set = 'Сердце Роя';
-                    else if (set.toLowerCase().includes('гибель богов')) set = 'Гибель богов';
-                    else if (set.toLowerCase().includes('путь хранителей')) set = 'Путь хранителей';
-
-                    let number = c.number || 0;
-                    if (!number || number === 0) {
-                        const url = c.imageUrl || '';
-                        const mGb = url.match(/Berserk_GB_cards_(\d+)/i);
-                        const mSr = url.match(/(?:СР|CP|SR)[_-]?0*(\d+)/i);
-                        if (mGb) number = parseInt(mGb[1], 10);
-                        else if (mSr) number = parseInt(mSr[1], 10);
+                const isRowActive = (side, rowDiff) => {
+                    const diff = simAttacker.value - simDefender.value;
+                    if (side === 'attacker' && diff > 0) {
+                        return rowDiff === 5 ? diff >= 5 : diff === rowDiff;
                     }
-
-                    let cost = Number(c.cost) || 3;
-                    if (cost > 30) cost = 4;
-
-                    // Определение элитности (Золото vs Серебро)
-                    const isElite = typeof c.isElite === 'boolean' 
-                        ? c.isElite 
-                        : (cost >= 5 || ((c.rarity === 'Редкая' || c.rarity === 'Ультраредкая') && cost >= 4));
-
-                    const maxHp = Number(c.hp) || (isElite ? Math.max(8, cost * 2) : Math.max(5, cost * 2));
-                    const strike = c.strike || (isElite ? '2-3-5' : '1-2-3');
-                    const steps = Number(c.steps) || 1;
-
-                    return {
-                        ...c,
-                        set,
-                        number,
-                        cost,
-                        isElite,
-                        maxHp,
-                        strike,
-                        steps
-                    };
+                    if (side === 'defender' && diff < 0) {
+                        const abs = Math.abs(diff);
+                        return rowDiff === 5 ? abs >= 5 : abs === rowDiff;
+                    }
+                    return false;
                 };
 
-                onMounted(async () => {
-                    try {
-                        const savedInv = localStorage.getItem('berserk_inventory_gb');
-                        if (savedInv) inventory.value = JSON.parse(savedInv);
-                    } catch (e) {}
-
-                    try {
-                        const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
-                        const data = await res.json();
-                        cards.value = data.map(enrichAndSanitizeCard);
-                    } catch (e) {
-                        // Демо-набор на случай открытия без локального сервера
-                        cards.value = [
-                            { cardId: 101, number: 1, name: 'Азенаэль', set: 'Гибель богов', element: 'Степи', rarity: 'Ультраредкая', cost: 6, isElite: true, maxHp: 13, strike: '2-4-5', steps: 2, imageUrl: 'https://placehold.co/300x420/2a241e/e5c384?text=Азенаэль' },
-                            { cardId: 102, number: 14, name: 'Страж Ковена', set: 'Сердце Роя', element: 'Тьма', rarity: 'Частая', cost: 3, isElite: false, maxHp: 8, strike: '1-2-3', steps: 1, imageUrl: 'https://placehold.co/300x420/1d192b/c9a66b?text=Страж+Ковена' },
-                            { cardId: 103, number: 45, name: 'Матрона Роя', set: 'Сердце Роя', element: 'Болота', rarity: 'Редкая', cost: 5, isElite: true, maxHp: 11, strike: '2-3-4', steps: 1, imageUrl: 'https://placehold.co/300x420/1b2a20/e5c384?text=Матрона+Роя' },
-                            { cardId: 104, number: 97, name: 'Фабричный голем', set: 'Гибель богов', element: 'Горы', rarity: 'Необычная', cost: 4, isElite: false, maxHp: 10, strike: '2-3-4', steps: 1, imageUrl: 'https://placehold.co/300x420/24282c/eae6df?text=Голем' }
-                        ];
+                const isPrevRowChoice = (side, rowDiff) => {
+                    const diff = simAttacker.value - simDefender.value;
+                    if (side === 'attacker' && diff >= 2) {
+                        const activeRow = Math.min(5, diff);
+                        return rowDiff === activeRow - 1;
                     }
-                });
-
-                const ownedCardIdsCount = computed(() => {
-                    return cards.value.filter(c => {
-                        const item = inventory.value[c.cardId];
-                        return item && ((item.normal || 0) + (item.foil || 0) > 0);
-                    }).length;
-                });
-
-                // ==========================================
-                // ЖЕСТКАЯ МАТЕМАТИКА КОШЕЛЬКА (ЗОЛОТО / СЕРЕБРО / ПЕРЕЛИВ)
-                // ==========================================
-                const getMaxCrystalLimits = (pIdx) => {
-                    const baseGold = gameMode.value === 'mini' ? 12 : 24;
-                    const baseSilver = gameMode.value === 'mini' ? 11 : 22;
-                    const bonus = (pIdx === 2 && secondPlayerBonus.value) ? 1 : 0;
-                    return {
-                        maxGold: baseGold + bonus,
-                        maxSilver: baseSilver + bonus
-                    };
+                    if (side === 'defender' && diff <= -2) {
+                        const activeRow = Math.min(5, Math.abs(diff));
+                        return rowDiff === activeRow - 1;
+                    }
+                    return false;
                 };
 
-                const calculateSquadFinances = (squadList, pIdx) => {
-                    const { maxGold, maxSilver } = getMaxCrystalLimits(pIdx);
+                const strikeColor = (val) => {
+                    if (val === 'сильный') return 'text-rose-400';
+                    if (val === 'средний') return 'text-amber-300';
+                    if (val === 'слабый') return 'text-emerald-400';
+                    return 'text-stone-500';
+                };
 
-                    let eliteGoldCost = 0;
-                    let regularSilverCost = 0;
-                    const nonNeutralElements = new Set();
-                    const allElements = new Set();
+                // ==========================================
+                // МАТЕМАТИКА КОШЕЛЬКА И СТИХИЙ
+                // ==========================================
+                const getBaseLimits = (pIdx) => {
+                    if (gamePreset.value === 'mini') return { gold: 12, silver: 11 };
+                    if (gamePreset.value === 'classic') {
+                        return pIdx === 0 ? { gold: 24, silver: 22 } : { gold: 25, silver: 23 };
+                    }
+                    return { gold: 24, silver: 22 };
+                };
 
-                    squadList.forEach(c => {
-                        if (c.isElite) eliteGoldCost += c.cost;
-                        else regularSilverCost += c.cost;
+                const getPlayerElements = (pIdx) => {
+                    const set = new Set();
+                    players.value[pIdx].squad.forEach(item => {
+                        if (item.card.element && item.card.element !== 'Нейтральная') {
+                            set.add(item.card.element);
+                        }
+                    });
+                    return Array.from(set);
+                };
 
-                        if (c.element) {
-                            allElements.add(c.element);
-                            if (c.element !== 'Нейтральная') nonNeutralElements.add(c.element);
+                // В Берсерке 1-я стихия бесплатна, каждая доп. стихия (кроме Нейтральной) снижает бюджет золота на 1
+                const getElementPenalty = (pIdx) => {
+                    if (!elementPenaltyOn.value) return 0;
+                    const elems = getPlayerElements(pIdx);
+                    return Math.max(0, elems.length - 1);
+                };
+
+                const calculateWalletState = (squadItems, pIdx) => {
+                    const base = getBaseLimits(pIdx);
+                    const elems = new Set();
+                    let goldCardsCost = 0;
+                    let silverCardsCost = 0;
+
+                    squadItems.forEach(item => {
+                        if (item.card.element && item.card.element !== 'Нейтральная') {
+                            elems.add(item.card.element);
+                        }
+                        if (item.card.isElite) {
+                            goldCardsCost += (item.card.cost || 0) * item.qty;
+                        } else {
+                            silverCardsCost += (item.card.cost || 0) * item.qty;
                         }
                     });
 
-                    // Штраф за дополнительные стихии (первая стихия бесплатно, каждая следующая +1 кристалл)
-                    const elementPenalty = (elementPenaltyEnabled.value && nonNeutralElements.size > 1)
-                        ? (nonNeutralElements.size - 1)
-                        : 0;
+                    const penalty = elementPenaltyOn.value ? Math.max(0, elems.size - 1) : 0;
+                    const maxGold = Math.max(0, base.gold - penalty);
+                    const maxSilver = base.silver;
 
-                    // Сколько серебра реально взято из серебряного пула, а сколько перелилось в золото
-                    const silverUsedFromPool = Math.min(maxSilver, regularSilverCost);
-                    const silverSpilloverToGold = Math.max(0, regularSilverCost - maxSilver);
-
-                    const goldSpentTotal = eliteGoldCost + silverSpilloverToGold + elementPenalty;
-                    const goldRemaining = Math.max(0, maxGold - goldSpentTotal);
-                    const silverRemaining = Math.max(0, maxSilver - regularSilverCost);
+                    const silverOverflow = Math.max(0, silverCardsCost - maxSilver);
+                    const silverLeft = Math.max(0, maxSilver - silverCardsCost);
+                    const totalGoldNeeded = goldCardsCost + silverOverflow;
+                    const goldLeft = maxGold - totalGoldNeeded;
 
                     return {
                         maxGold,
                         maxSilver,
-                        eliteGoldCost,
-                        regularSilverCost,
-                        elementPenalty,
-                        silverUsedFromPool,
-                        silverSpilloverToGold,
-                        goldSpentTotal,
-                        goldRemaining,
-                        silverRemaining,
-                        isValid: goldSpentTotal <= maxGold && squadList.length <= 15,
-                        elementsList: Array.from(allElements)
+                        goldLeft,
+                        silverLeft,
+                        goldSpentOnSilver: silverOverflow,
+                        valid: goldLeft >= 0
                     };
                 };
 
-                const getArmy = (pIdx) => armies[pIdx];
-                const getWallet = (pIdx) => calculateSquadFinances(armies[pIdx], pIdx);
+                const getWallet = (pIdx) => calculateWalletState(players.value[pIdx].squad, pIdx);
 
-                // Проверка: может ли игрок позволить себе добавить эту карту прямо сейчас (БЕЗ ухода в минус!)
-                const canAffordCard = (pIdx, card) => {
-                    const currentSquad = armies[pIdx];
+                const getPlayerCardCount = (pIdx) => {
+                    return players.value[pIdx].squad.reduce((sum, item) => sum + item.qty, 0);
+                };
 
-                    if (currentSquad.length >= 15) {
-                        return { allowed: false, reason: 'Лимит 15 карт' };
+                const canAddCard = (pIdx, card) => {
+                    const p = players.value[pIdx];
+                    if (getPlayerCardCount(pIdx) >= 15) {
+                        return { ok: false, label: 'Лимит 15 карт' };
+                    }
+                    const existing = p.squad.find(i => i.card.cardId === card.cardId);
+                    if (existing && existing.qty >= 3) {
+                        return { ok: false, label: 'Макс. 3 копии' };
                     }
 
-                    const sameCardCopies = currentSquad.filter(c => c.cardId === card.cardId).length;
-                    if (sameCardCopies >= 3) {
-                        return { allowed: false, reason: 'Макс. 3 копии' };
+                    // Симулируем добавление карты и проверяем, хватит ли золота/серебра с учетом перелива и стихий
+                    const simulatedSquad = p.squad.map(i => ({ card: i.card, qty: i.qty }));
+                    const simExisting = simulatedSquad.find(i => i.card.cardId === card.cardId);
+                    if (simExisting) simExisting.qty += 1;
+                    else simulatedSquad.push({ card, qty: 1 });
+
+                    const simWallet = calculateWalletState(simulatedSquad, pIdx);
+                    if (!simWallet.valid) {
+                        return { ok: false, label: card.isElite ? 'Не хватает 🪙' : 'Не хватает 🥈/🪙' };
                     }
 
-                    // Пробно добавляем карту и проверяем баланс золота и серебра
-                    const simulated = calculateSquadFinances([...currentSquad, card], pIdx);
-                    if (!simulated.isValid) {
-                        return { 
-                            allowed: false, 
-                            reason: card.isElite ? 'Не хватает 🪙' : 'Не хватает 🥈/🪙' 
-                        };
-                    }
-
-                    return { allowed: true, reason: '+ В отряд' };
+                    return {
+                        ok: true,
+                        label: existing ? `+ Взять ещё (${existing.qty}/3)` : '+ В отряд'
+                    };
                 };
 
-                const addToArmy = (pIdx, card) => {
-                    const check = canAffordCard(pIdx, card);
-                    if (!check.allowed) return;
-                    armies[pIdx].push(card);
+                const addCardToSquad = (pIdx, card) => {
+                    if (!canAddCard(pIdx, card).ok) return;
+                    const squad = players.value[pIdx].squad;
+                    const existing = squad.find(i => i.card.cardId === card.cardId);
+                    if (existing) existing.qty += 1;
+                    else squad.push({ card, qty: 1 });
                 };
 
-                const removeFromArmy = (pIdx, index) => {
-                    armies[pIdx].splice(index, 1);
+                const changeSquadQty = (pIdx, cardId, delta) => {
+                    const squad = players.value[pIdx].squad;
+                    const idx = squad.findIndex(i => i.card.cardId === cardId);
+                    if (idx === -1) return;
+                    squad[idx].qty += delta;
+                    if (squad[idx].qty <= 0) squad.splice(idx, 1);
                 };
 
-                const clearArmy = (pIdx) => {
-                    armies[pIdx] = [];
+                const clearSquad = (pIdx) => {
+                    players.value[pIdx].squad = [];
                 };
 
-                const getFilteredPool = (pIdx) => {
-                    const q = searchQueries[pIdx].trim().toLowerCase();
-                    const elem = elementFilters[pIdx];
-
-                    let pool = cards.value;
-                    if (poolSourceMode.value === 'OWNED') {
-                        pool = pool.filter(c => {
-                            const inv = inventory.value[c.cardId];
-                            return inv && ((inv.normal || 0) + (inv.foil || 0) > 0);
+                // ==========================================
+                // ПЕРЕХОД К СТОЛУ БОЯ
+                // ==========================================
+                const startBattleFromDraft = () => {
+                    players.value.forEach(p => {
+                        const units = [];
+                        p.squad.forEach(item => {
+                            for (let i = 0; i < item.qty; i++) {
+                                const defaultHp = item.card.life && item.card.life > 0 ? item.card.life : 8;
+                                units.push({
+                                    uid: `${item.card.cardId}_${i}_${ Date.now() }`,
+                                    card: item.card,
+                                    hp: defaultHp,
+                                    maxHp: defaultHp,
+                                    tapped: false,
+                                    dead: false,
+                                    poison: 0,
+                                    tokens: 0,
+                                    showExtra: false
+                                });
+                            }
                         });
-                    }
-
-                    return pool.filter(c => {
-                        const matchElem = elem === 'ALL' || c.element === elem;
-                        const matchQ = !q || c.name.toLowerCase().includes(q) || `#${c.number}`.includes(q) || String(c.number).includes(q);
-                        return matchElem && matchQ;
-                    }).slice(0, 40);
-                };
-
-                // ==========================================
-                // МОДУЛЬ 2: СТОЛ БОЯ (ТРЕКЕР ХП И ХОДОВ)
-                // ==========================================
-                const createFighterInstance = (card, idx) => ({
-                    ...card,
-                    instanceId: `${card.cardId}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
-                    hp: card.maxHp,
-                    maxHp: card.maxHp,
-                    isExhausted: false,
-                    tokens: 0,
-                    poison: 0
-                });
-
-                const startBattle = () => {
-                    battleFighters[1] = armies[1].map((c, i) => createFighterInstance(c, i));
-                    battleFighters[2] = armies[2].map((c, i) => createFighterInstance(c, i));
-                    turnNumber.value = 1;
+                        p.battleUnits = units;
+                    });
+                    battleStarted.value = true;
                     activeTab.value = 'battle';
                 };
 
-                const getBattleList = (pIdx) => battleFighters[pIdx];
-                const getAliveFighters = (pIdx) => battleFighters[pIdx].filter(f => f.hp > 0);
-                const getDeadFighters = (pIdx) => battleFighters[pIdx].filter(f => f.hp <= 0);
-                const totalFightersCount = computed(() => battleFighters[1].length + battleFighters[2].length);
-
-                const changeHp = (fighter, delta) => {
-                    fighter.hp = Math.max(0, Math.min(fighter.maxHp + 10, fighter.hp + delta));
+                const changeHp = (unit, delta) => {
+                    if (unit.dead && delta < 0) return;
+                    unit.hp = Math.max(0, unit.hp + delta);
+                    if (unit.hp === 0) unit.dead = true;
+                    // Полное исцеление до максимума снимает отравление по правилам Берсерка
+                    if (delta > 0 && unit.hp >= unit.maxHp && unit.poison > 0) {
+                        unit.poison = 0;
+                    }
                 };
 
-                const untapAllPlayerCards = (pIdx) => {
-                    battleFighters[pIdx].forEach(f => {
-                        if (f.hp > 0) f.isExhausted = false;
-                    });
+                const toggleDead = (unit) => {
+                    unit.dead = !unit.dead;
+                    if (!unit.dead && unit.hp === 0) unit.hp = unit.maxHp;
                 };
 
-                const openNewTurnForPlayer = (pIdx) => {
-                    turnNumber.value++;
-                    battleFighters[pIdx].forEach(f => {
-                        if (f.hp > 0) {
-                            f.isExhausted = false;
-                            // Если на существе висит яд, списываем ХП автоматически в начале его хода
-                            if (f.poison > 0) {
-                                f.hp = Math.max(0, f.hp - f.poison);
+                const startNewTurn = (pIdx) => {
+                    players.value[pIdx].battleUnits.forEach(u => {
+                        if (!u.dead) {
+                            u.tapped = false;
+                            if (u.poison > 0) {
+                                u.hp = Math.max(0, u.hp - u.poison);
+                                if (u.hp === 0) u.dead = true;
                             }
                         }
                     });
                 };
 
-                const resetAllBattleStats = () => {
-                    [1, 2].forEach(pIdx => {
-                        battleFighters[pIdx].forEach(f => {
-                            f.hp = f.maxHp;
-                            f.isExhausted = false;
-                            f.tokens = 0;
-                            f.poison = 0;
-                        });
+                // ==========================================
+                // ФИЛЬТРАЦИЯ КАТАЛОГА
+                // ==========================================
+                const filteredCatalog = computed(() => {
+                    const q = searchQuery.value.trim().toLowerCase();
+                    return cards.value.filter(c => {
+                        if (onlyMyAlbumCards.value) {
+                            const myTotal = (albumInventory.value[c.cardId]?.normal || 0) + (albumInventory.value[c.cardId]?.foil || 0);
+                            if (myTotal <= 0) return false;
+                        }
+                        if (filterElement.value !== 'ALL' && c.element !== filterElement.value) return false;
+                        if (filterCurrency.value === 'GOLD' && !c.isElite) return false;
+                        if (filterCurrency.value === 'SILVER' && c.isElite) return false;
+                        if (q) {
+                            const numStr = `#${c.number}`;
+                            return c.name.toLowerCase().includes(q) || numStr.includes(q);
+                        }
+                        return true;
                     });
-                    turnNumber.value = 1;
-                };
+                });
 
                 // ==========================================
-                // ТАБЛИЦА ПРОСТОГО УДАРА 6x6 (ДЛЯ СПРАВОЧНИКА)
-                // ==========================================
-                const getCombatCellLabel = (diff) => {
-                    if (diff >= 3) return 'СИЛЬНЫЙ';
-                    if (diff === 2) return 'СРЕДНИЙ';
-                    if (diff === 1) return 'СЛАБЫЙ';
-                    if (diff === 0) return 'СЛАБЫЙ';
-                    if (diff === -1) return 'ВЗАИМ. СЛАБ.';
-                    if (diff === -2) return 'ПРОМАХ';
-                    return 'ПРОМАХ / ОТВЕТ';
-                };
-
-                const getCombatCellClass = (diff) => {
-                    if (diff >= 3) return 'bg-rose-500/25 text-rose-300';
-                    if (diff === 2) return 'bg-amber-500/25 text-amber-300';
-                    if (diff === 1 || diff === 0) return 'bg-emerald-500/20 text-emerald-300';
-                    if (diff === -1) return 'bg-sky-500/20 text-sky-300';
-                    return 'bg-stone-800/80 text-stone-400';
-                };
-
-                // ==========================================
-                // МОДУЛЬ 3: ПОЛНАЯ ЭНЦИКЛОПЕДИЯ (55+ КАРТОЧЕК)
+                // ВЫВЕРЕННЫЙ СПРАВОЧНИК ПРАВИЛ И ЗНАЧКОВ
                 // ==========================================
                 const glossarySearch = ref('');
-                const selectedGlossaryCategory = ref('Все');
+                const glossaryCategory = ref('ALL');
 
-                const glossaryCategories = [
-                    'Все',
-                    'Значки на карте',
-                    'Бой и Удары',
-                    'Защита и Выживание',
-                    'Механики сетов (Рой / Боги)',
-                    'Магия и Контроль',
-                    'Типы карт и Поле'
-                ];
+                const glossaryData = [
+                    // Значки
+                    { icon: '❤️', term: 'Жизни (ХП)', cat: 'Значки', desc: 'Сколько ран может получить карта до гибели. Когда число ран сравнивается с жизнями, карта отправляется на кладбище.' },
+                    { icon: '🗡️', term: 'Простой удар (X–Y–Z)', cat: 'Значки', desc: 'Три числа через дефис: сила Слабого, Среднего и Сильного удара. Рассчитывается броском кубиков обоих игроков по Таблице ударов.' },
+                    { icon: '🥾', term: 'Шаги (Движение)', cat: 'Значки', desc: 'На сколько клеток существо может переместиться за ход (по горизонтали или вертикали; по диагонали ходить нельзя, кроме прикрытия защитником).' },
+                    { icon: '🪽', term: 'Полёт', cat: 'Значки', desc: 'Летающие существа ставятся в отдельную зону Полёта. Могут бить простым ударом любую карту противника (как бы далеко она ни стояла) и не блокируются чужими рядами.' },
+                    { icon: '🏹', term: 'Выстрел на X', cat: 'Значки', desc: 'Дальняя физическая атака без броска кубика и без ответного удара. От неё можно закрыться защитником или спастись Защитой от выстрелов.' },
+                    { icon: '🎯', term: 'Метание на X', cat: 'Значки', desc: 'Дальняя физическая атака (обычно со штрафом по дальности или броском кубика). Считается дальней атакой, но НЕ считается выстрелом.' },
+                    { icon: '⚡', term: 'Разряд на X', cat: 'Значки', desc: 'Дальняя магическая атака. От разряда НЕЛЬЗЯ прикрыться соседом-защитником, но от него спасает Защита от разрядов и Защита от магии.' },
+                    { icon: '💖', term: 'Лечение на X', cat: 'Значки', desc: 'Действие: снимает X ран с выбранного существа. Полное излечение до максимума жизней также снимает Отравление.' },
+                    { icon: '🔵', term: 'Фишки (Цифра в кружке)', cat: 'Значки', desc: 'Жетон заряда на карте. Способности со значком фишки требуют снять указанное число фишек с карты для активации.' },
+                    { icon: '🪙', term: 'Элитность (Золото / Серебро)', cat: 'Значки', desc: 'Золотые карты набираются только за золотые кристаллы. Серебряные — за серебряные (а при их нехватке — за золотые 1 к 1).' },
 
-                const glossaryItems = [
-                    // 1. ЗНАЧКИ НА КАРТЕ
-                    { title: 'Жизни (❤️ Число)', icon: '❤️', category: 'Значки на карте', desc: 'Количество единиц здоровья карты. Когда число полученных ран становится равным или больше жизней, карта погибает и отправляется на кладбище.' },
-                    { title: 'Простой удар (🗡️ X–Y–Z)', icon: '🗡️', category: 'Значки на карте', desc: 'Три числа через дефис показывают силу Слабого (X), Среднего (Y) и Сильного (Z) простого удара по соседней клетке в зависимости от броска кубиков.' },
-                    { title: 'Шаги / Движение (🥾 1, 2, 3)', icon: '🥾', category: 'Значки на карте', desc: 'На сколько клеток существо может передвинуться за одно закрытие (поворот). Ходить можно по горизонтали и вертикали (по диагонали шагать нельзя, если не указано иное).' },
-                    { title: 'Полёт (🪽)', icon: '🪽', category: 'Значки на карте', desc: 'Летающее существо располагается в особой зоне полёта позади поля. Оно может бить простым ударом любую карту противника на поле и само может быть атаковано стрелками, магами и другими летающими.' },
-                    { title: 'Выстрел на X (🏹)', icon: '🏹', category: 'Значки на карте', desc: 'Дальняя физическая атака за закрытие карты. Цель не дает сдачи! Если указана дальность (например, дальность 3) — можно стрелять через клетки (включая диагонали).' },
-                    { title: 'Метание на X (🎯)', icon: '🎯', category: 'Значки на карте', desc: 'Разновидность дальней физической атаки (обычно на 2–3 клетки). Как и от выстрела, от метания спасает «Защита от выстрелов» (или «Защита от метания»).' },
-                    { title: 'Магический разряд на X (⚡)', icon: '⚡', category: 'Значки на карте', desc: 'Дальняя магическая атака стихией. Игнорирует физическую Броню и Защиту от выстрелов! От разряда защищает только «Защита от разрядов» или «Защита от магии».' },
-                    { title: 'Лечение на X (💖)', icon: '💖', category: 'Значки на карте', desc: 'За закрытие снимает X ран с выбранного существа. Не может поднять жизни выше начального максимума и не снимает раны от Отравления (Яда).' },
-                    { title: 'Телепортация на X (🌀)', icon: '🌀', category: 'Значки на карте', desc: 'Особый вид перемещения: существо мгновенно переносится на свободную клетку на расстоянии до X, перепрыгивая через любые занятые клетки и препятствия.' },
-                    { title: 'Опыт в атаке (⚔️ +X)', icon: '⚔️', category: 'Значки на карте', desc: 'Когда эта карта атакует простым ударом, к результату её броска кубика прибавляется +X. Опыт не работает при выстрелах и разрядах.' },
-                    { title: 'Опыт в защите (🛡️ +X)', icon: '🛡️', category: 'Значки на карте', desc: 'Когда эту карту атакуют простым ударом, к результату её защитного броска кубика прибавляется +X (даже если карта в этот момент закрыта!).' },
-                    { title: 'Закрытие / Поворот (🔄)', icon: '🔄', category: 'Значки на карте', desc: 'Стрелочка поворота в тексте свойства означает, что для активации этой способности открытую карту необходимо повернуть на 90° (закрыть).' },
-                    { title: 'Требование фишек (🔵 Число)', icon: '🔵', category: 'Значки на карте', desc: 'Цифра в кружочке перед действием означает, что для его использования нужно снять с этой карты указанное количество накопленных фишек.' },
-                    { title: 'Золотая (Элитная) карта (🪙)', icon: '🪙', category: 'Значки на карте', desc: 'Мощные герои и монстры с золотым кристаллом стоимости. Покупаются в отряд строго за золотые кристаллы.' },
-                    { title: 'Серебряная (Рядовая) карта (🥈)', icon: '🥈', category: 'Значки на карте', desc: 'Основа войска с серебряным кристаллом. Покупаются за серебро, а при нехватке серебра могут оплачиваться золотыми кристаллами 1 к 1.' },
+                    // Удары и Атаки
+                    { icon: '🎯', term: 'Направленный удар', cat: 'Удары', desc: 'От такого удара цель НЕ может быть прикрыта другим существом-защитником и не может уклониться перемещением.' },
+                    { icon: '🔱', term: 'Удар через ряд', cat: 'Удары', desc: 'Позволяет атаковать простым ударом цель через одну клетку по прямой (например, из своего 2-го ряда бить 1-й ряд врага через спину союзника). При таком ударе через клетку атакующий НЕ получает ответных ран по таблице.' },
+                    { icon: '🌪️', term: 'Круговой удар', cat: 'Удары', desc: 'Атакует сразу все вражеские карты, стоящие на соседних клетках вокруг бьющего существа.' },
+                    { icon: '🏹', term: 'Сквозной удар / Выстрел', cat: 'Удары', desc: 'Поражает основную цель и существо, стоящее непосредственно на клетке позади неё по прямой линии.' },
+                    { icon: '🐎', term: 'Удар с разбега / Валькирия', cat: 'Удары', desc: 'Позволяет существу переместиться и в этот же ход нанести удар (вопреки базовому правилу закрытия от движения).' },
+                    { icon: '⚔️', term: 'Опыт в атаке', cat: 'Удары', desc: 'Когда это существо объявляет простой удар, оно получает +1 к броску кубика (или по числу степени опыта).' },
+                    { icon: '🛡️', term: 'Опыт в защите', cat: 'Удары', desc: 'Когда это существо атакуют простым ударом, оно получает +1 к своему броску кубика.' },
+                    { icon: '⚡', term: 'Контрудар', cat: 'Удары', desc: 'Позволяет существу наносить ответный удар по таблице даже тогда, когда оно само выступило защитником и прикрыло союзника.' },
 
-                    // 2. БОЙ И УДАРЫ
-                    { title: 'Направленный удар', icon: '🎯', category: 'Бой и Удары', desc: 'От направленного простого удара цель НЕ может быть прикрыта другим защитником (нельзя поменяться местами) и не может уклониться/отпрыгнуть.' },
-                    { title: 'Удар через ряд (Древковое)', icon: '🔱', category: 'Бой и Удары', desc: 'Позволяет наносить простой удар на 2 клетки строго по прямой (по вертикали или горизонтали), даже если между атакующим и целью стоит другая карта! При таком ударе через клетку защитник не может дать ответный удар.' },
-                    { title: 'Удар с разбега', icon: '🐎', category: 'Бой и Удары', desc: 'Один раз за ход существо может передвинуться и в этот же ход сразу нанести простой удар (не закрываясь за само движение перед ударом!).' },
-                    { title: 'Круговой удар', icon: '🌪️', category: 'Бой и Удары', desc: 'Особая атака, поражающая сразу всех существ противника (а иногда и всех существ вообще), стоящих на соседних с атакующим клетках.' },
-                    { title: 'Сквозной удар', icon: '☄️', category: 'Бой и Удары', desc: 'При нанесении простого удара урон получает как выбранная цель, так и карта противника, стоящая непосредственно за её спиной.' },
-                    { title: 'Внезапный удар / Первый удар', icon: '⚡', category: 'Бой и Удары', desc: 'Атака происходит мгновенно: если защитник погибает от этого удара, он не успевает нанести взаимный или ответный удар.' },
-                    { title: 'Отравленный удар на X', icon: '🐍', category: 'Бой и Удары', desc: 'При нанесении ран простым ударом цель дополнительно получает Отравление (Яд) на X (в начале каждого своего хода будет получать X ран).' },
-                    { title: 'Кровожадность X', icon: '🩸', category: 'Бой и Удары', desc: 'Каждый раз, когда это существо уничтожает вражеское существо простым ударом, оно излечивается на X ран (или получает указанный бонус).' },
-                    { title: 'Вампиризм', icon: '🦇', category: 'Бой и Удары', desc: 'Нанося раны живому существу противника простым ударом, вампир излечивает себе столько же ран (или половину, согласно тексту карты).' },
-                    { title: 'Добивание X', icon: '🪓', category: 'Бой и Удары', desc: 'Если у цели уже есть раны (или осталось мало ХП), удар наносит на X больше урона.' },
-                    { title: 'Залп', icon: '🏹', category: 'Бой и Удары', desc: 'Способность лучников копить силу выстрела с союзниками или выпускать несколько стрел по разным целям.' },
+                    // Защиты и Броня
+                    { icon: '🛡️', term: 'Броня X', cat: 'Защита', desc: 'Каждый ход первые X ран от ПРОСТЫХ УДАРОВ по этому существу игнорируются. От выстрелов, метания и разрядов обычная Броня не защищает.' },
+                    { icon: '🐉', term: 'Чешуя X', cat: 'Защита', desc: 'Уменьшает урон от каждого выстрела, метания или разряда по этому существу на X.' },
+                    { icon: '✨', term: 'Защита от магии (ЗОМ)', cat: 'Защита', desc: 'Существо не может быть целью вражеских заклинаний, разрядов и магических воздействий. Простые удары и обычные выстрелы по нему проходят нормально.' },
+                    { icon: '🏹', term: 'Защита от выстрелов (ЗОВ)', cat: 'Защита', desc: 'Существо нельзя выбрать целью выстрела (но можно поразить метанием, разрядом или простым ударом).' },
+                    { icon: '⚡', term: 'Защита от разрядов (ЗОР)', cat: 'Защита', desc: 'Существо нельзя выбрать целью магического разряда.' },
+                    { icon: '👻', term: 'Бестелесность', cat: 'Защита', desc: 'Получает уменьшенный урон от простых ударов и выстрелов (согласно тексту карты), часто игнорирует препятствия при движении.' },
+                    { icon: '💪', term: 'Живучесть', cat: 'Защита', desc: 'При получении смертельного урона остаётся в живых с 1 жизнью (обычно срабатывает 1 раз за бой).' },
 
-                    // 3. ЗАЩИТА И ВЫЖИВАНИЕ
-                    { title: 'Броня X', icon: '🛡️', category: 'Защита и Выживание', desc: 'В течение каждого хода первые X единиц урона от простых ударов, выстрелов и метания поглощаются броней (не наносят ран). Магические разряды и заклинания пробивают обычную броню!' },
-                    { title: 'Регенерация X', icon: '🌿', category: 'Защита и Выживание', desc: 'В начале каждого вашего хода это существо автоматически излечивается на X ран (не работает на раны от Яда, пока яд не снят).' },
-                    { title: 'Защита от выстрелов (ЗОВ)', icon: '☂️', category: 'Защита и Выживание', desc: 'Существо не получает урона от Выстрелов (🏹) и Метания (🎯), либо полностью запрещает выбирать себя целью для стрелков.' },
-                    { title: 'Защита от разрядов (ЗОР)', icon: '🔋', category: 'Защита и Выживание', desc: 'Существо не получает урона от магических Разрядов (⚡).' },
-                    { title: 'Защита от магии (ЗОМ)', icon: '🔮', category: 'Защита и Выживание', desc: 'Защищает от вражеских заклинаний, магических разрядов и магических воздействий противника. При этом вы по-прежнему можете лечить и баффать эту карту своей магией!' },
-                    { title: 'Магический иммунитет (МИ)', icon: '🚫', category: 'Защита и Выживание', desc: 'Абсолютная невосприимчивость к ЛЮБОЙ магии, разрядам и заклинаниям — как вражеским, так и вашим собственным (такую карту нельзя вылечить магическим лечением!).' },
-                    { title: 'Живучесть', icon: '💪', category: 'Защита и Выживание', desc: 'Получая смертельный урон, существо один раз остается в живых с 1 жизнью (или уменьшает любой входящий урон согласно тексту).' },
-                    { title: 'Бестелесность (Призрак)', icon: '👻', category: 'Защита и Выживание', desc: 'Существо получает уменьшенный урон от обычных физических ударов и может проходить сквозь занятые клетки.' },
-                    { title: 'Уклонение', icon: '💨', category: 'Защита и Выживание', desc: 'Шанс полностью избежать простого удара или выстрела при броске кубика (или раз в ход автоматически).' },
-                    { title: 'Кочевой (Степи)', icon: '⛺', category: 'Защита и Выживание', setTag: 'Война стихий', desc: 'Бонусы за перемещение: существо получает защиту или усиление удара, если передвинулось в текущем или прошлом ходу.' },
-
-                    // 4. МЕХАНИКИ СЕТОВ (СЕРДЦЕ РОЯ, ГИБЕЛЬ БОГОВ, ВОЙНА СТИХИЙ)
-                    { title: 'Рой / Улей', icon: '🐝', category: 'Механики сетов (Рой / Боги)', setTag: 'Сердце Роя', desc: 'Ключевая механика выпуска «Сердце Роя»: существа Роя усиливают друг друга за количество союзников с особенностью «Рой» на поле и призывают мелких трутней/личинок.' },
-                    { title: 'Заражение / Паразит', icon: '🦠', category: 'Механики сетов (Рой / Боги)', setTag: 'Сердце Роя', desc: 'Накладывает на вражеских существ метки/фишки заражения, которые ослабляют их удары или позволяют картам Роя перехватывать над ними контроль и лечиться.' },
-                    { title: 'Трупоедство / Пожиратель', icon: '🦴', category: 'Механики сетов (Рой / Боги)', setTag: 'Сердце Роя', desc: 'За закрытие (или при гибели соседа) существо поглощает карту с кладбища (убирая её из партии навсегда) и полностью излечивает все свои раны / получает фишки.' },
-                    { title: 'Симбиоз', icon: '🧬', category: 'Механики сетов (Рой / Боги)', setTag: 'Сердце Роя', desc: 'Связывает два существа: пока оба живы, они делят бонусы к броне/удару или перенаправляют раны друг на друга.' },
-                    { title: 'Молитва / Жертва / Вера', icon: '🙏', category: 'Механики сетов (Рой / Боги)', setTag: 'Гибель богов', desc: 'Механика «Гибели богов»: существа копят фишки молитвы или приносят раны/союзников в жертву ради мощных божественных эффектов.' },
-                    { title: 'Наемник / Золотой контракт', icon: '💰', category: 'Механики сетов (Рой / Боги)', setTag: 'Гибель богов', desc: 'Особые бойцы, которые получают бонусы при оплате золотом или требуют выполнения условия на поле.' },
-                    { title: 'Строй', icon: '🤝', category: 'Механики сетов (Рой / Боги)', setTag: 'Базовая тактика', desc: 'Текст после слова «Строй:» работает ТОЛЬКО тогда, когда на соседней клетке слева или справа стоит другое ваше открытое существо со способностью «Строй».' },
-                    { title: 'Орда', icon: '🐾', category: 'Механики сетов (Рой / Боги)', desc: 'Отменяет правило «не более 3 одинаковых карт». В свой отряд можно набрать любое количество (4, 5 и более) карт с особенностью «Орда».' },
-                    { title: 'Уникальность', icon: '👑', category: 'Механики сетов (Рой / Боги)', desc: 'На поле боя у каждого игрока может находиться только ОДНА карта с таким именем.' },
-                    { title: 'Вызов / Призыв', icon: '📣', category: 'Механики сетов (Рой / Боги)', desc: 'Позволяет прямо во время боя ввести на свободную клетку новое существо из вашего запаса (вне стартового отряда).' },
-
-                    // 5. МАГИЯ И КОНТРОЛЬ
-                    { title: 'Отравление X (Яд)', icon: '🧪', category: 'Магия и Контроль', desc: 'В начале каждого своего хода отравленное существо получает X ран. Если оно уже отравлено на 1 и получает Отравление 2 — действует только большее (2). Обычное лечение не лечит яд!' },
-                    { title: 'Ранение vs Урон (Важно!)', icon: '🩸', category: 'Магия и Контроль', desc: '«Нанести 2 раны» и «Нанести 2 урона» — разные вещи! Броня и снижения урона спасают от УРОНА, но если карта говорит «получает X ран» — броня игнорируется!' },
-                    { title: 'Оглушение', icon: '💫', category: 'Магия и Контроль', desc: 'Оглушенное существо не открывается в начале своего следующего хода и не может использовать свои активные действия.' },
-                    { title: 'Опутывание / Сеть', icon: '🕸️', category: 'Магия и Контроль', desc: 'Опутанное существо не может перемещаться (шагать и прыгать) и не может назначаться защитником до снятия эффекта.' },
-                    { title: 'Гипноз / Перехват контроля', icon: '👁️', category: 'Магия и Контроль', desc: 'До конца хода (или пока жив гипнотизер) вы управляете вражеским существом как своим: можете ходить им и бить его же бывших союзников.' },
-                    { title: 'Страх / Паника', icon: '😱', category: 'Магия и Контроль', desc: 'Заставляет существо противника принудительно отступить на клетку назад или запрещает ему атаковать.' },
-
-                    // 6. ТИПЫ КАРТ И ПОЛЕ
-                    { title: 'Внезапное действие', icon: '⚡', category: 'Типы карт и Поле', desc: 'Особое действие (например, назначение защитника или спец-способность), которое можно объявить В ХОД ПРОТИВНИКА в ответ на его атаку или магию.' },
-                    { title: 'Местность (Террейн)', icon: '🏔️', category: 'Типы карт и Поле', desc: 'Глобальная карта локации, влияющая на всё поле боя. На столе может действовать только ОДНА Местность: если любой игрок вводит новую Местность, старая уничтожается.' },
-                    { title: 'Артефакт / Снаряжение', icon: '⚔️', category: 'Типы карт и Поле', desc: 'Предмет или оружие, которое прикрепляется к существу (экипируется) или стоит отдельно, давая постоянный бонус к удару, броне или новую способность.' },
-                    { title: 'Событие / Заклинание', icon: '📜', category: 'Типы карт и Поле', desc: 'Одноразовая карта мгновенного эффекта: после розыгрыша сразу отправляется на кладбище.' }
+                    // Механики и Сеты
+                    { icon: '🩸', term: 'Кровожадность X', cat: 'Механики', desc: 'Когда это существо убивает вражескую карту простым ударом, оно излечивается на X ран (или получает указанный бонус).' },
+                    { icon: '💚', term: 'Регенерация X', cat: 'Механики', desc: 'В начале каждого вашего хода это существо автоматически излечивается на X ран.' },
+                    { icon: '☠️', term: 'Отравление X (Яд)', cat: 'Механики', desc: 'В начале каждого своего хода отравленное существо получает X ран. Снять отравление можно очищением или полностью излечив карту до максимума ХП.' },
+                    { icon: '🥩', term: 'Трупоедство', cat: 'Механики', desc: 'Действие: уничтожить (убрать из игры) карту существа с кладбища, после чего трупоед полностью излечивается от всех ран.' },
+                    { icon: '🤝', term: 'Строй', cat: 'Механики', desc: 'Бонус «Строя» работает только тогда, когда справа или слева в том же ряду стоит хотя бы одно другое дружественное существо со Строем.' },
+                    { icon: '🐝', term: 'Рой / Пожирание (Сердце Роя)', cat: 'Механики', desc: 'Механика улья: карты получают усиления за других существ Роя на поле или поглощают союзных мелких существ/трутней ради мощных эффектов.' },
+                    { icon: '🙏', term: 'Молитва / Жертва (Гибель богов)', cat: 'Механики', desc: 'Накопление веры или принесение ран/карт в жертву для вызова божественных эффектов и усиления хранителей.' },
+                    { icon: '👑', term: 'Уникальность', cat: 'Механики', desc: 'У одного игрока не может одновременно находиться в отряде / на поле более одной такой карты с тем же именем.' },
+                    { icon: '🐾', term: 'Орда', cat: 'Механики', desc: 'В отряд можно брать более 3 копий этой карты (сверх стандартного лимита в 3 штуки).' },
+                    { icon: '🏔️', term: 'Местность (Тип карты)', cat: 'Механики', desc: 'Глобальная карта поля боя. На столе может быть только одна Местность: при вводе новой старая (своя или чужая) уничтожается.' },
+                    { icon: '🗡️', term: 'Снаряжение / Артефакт', cat: 'Механики', desc: 'Прикрепляется к существу и даёт ему бонусы, пока существо живо.' }
                 ];
 
                 const filteredGlossary = computed(() => {
                     const q = glossarySearch.value.trim().toLowerCase();
-                    const cat = selectedGlossaryCategory.value;
-
-                    return glossaryItems.filter(item => {
-                        const matchCat = cat === 'Все' || item.category === cat;
-                        const matchQ = !q || item.title.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q) || (item.setTag && item.setTag.toLowerCase().includes(q));
-                        return matchCat && matchQ;
+                    return glossaryData.filter(item => {
+                        if (glossaryCategory.value !== 'ALL' && item.cat !== glossaryCategory.value) return false;
+                        if (q) {
+                            return item.term.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
+                        }
+                        return true;
                     });
                 });
 
+                onMounted(async () => {
+                    try {
+                        const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
+                        const data = await res.json();
+                        cards.value = data.map(c => {
+                            if (c.cost > 30) c.cost = 4;
+                            return c;
+                        });
+                    } catch (e) {
+                        console.error('Ошибка загрузки cards.json:', e);
+                    }
+
+                    const savedInv = localStorage.getItem('berserk_inventory_gb');
+                    if (savedInv) {
+                        try { albumInventory.value = JSON.parse(savedInv); } catch {}
+                    }
+                });
+
                 return {
-                    activeTab, cards, ownedCardIdsCount,
-                    // Модуль 1: Набор отрядов
-                    gameMode, secondPlayerBonus, elementPenaltyEnabled, poolSourceMode,
-                    playerNames, armies, searchQueries, elementFilters,
-                    getArmy, getWallet, canAffordCard, addToArmy, removeFromArmy, clearArmy, getFilteredPool,
-                    // Модуль 2: Стол боя
-                    turnNumber, startBattle, getBattleList, getAliveFighters, getDeadFighters, totalFightersCount,
-                    changeHp, untapAllPlayerCards, openNewTurnForPlayer, resetAllBattleStats,
-                    // Модуль 3: Справочник
-                    showQuickRules, getCombatCellLabel, getCombatCellClass,
-                    glossarySearch, selectedGlossaryCategory, glossaryCategories, filteredGlossary
+                    activeTab, cards, inspectCard,
+                    activeDraftPlayer, gamePreset, elementPenaltyOn, onlyMyAlbumCards,
+                    searchQuery, filterElement, filterCurrency, filteredCatalog,
+                    players, getWallet, getPlayerElements, getElementPenalty, getPlayerCardCount,
+                    canAddCard, addCardToSquad, changeSquadQty, clearSquad,
+                    battleStarted, startBattleFromDraft, changeHp, toggleDead, startNewTurn,
+                    simAttacker, simDefender, attackerWinsRows, defenderWinsRows, isRowActive, isPrevRowChoice, strikeColor,
+                    glossarySearch, glossaryCategory, filteredGlossary
                 };
             }
         }).mount('#app');
