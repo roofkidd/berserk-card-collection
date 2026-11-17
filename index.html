@@ -196,6 +196,10 @@
                         class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition">
                     💬 Написать {{ viewingFriend.username }}
                 </button>
+                <button @click="openTradeModal(viewingFriend)" 
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition">
+                    ⚖️ Предложить обмен
+                </button>
                 <button @click="exitFriendView" 
                         class="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition">
                     ← Вернуться в мой альбом
@@ -209,9 +213,7 @@
                 <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
                      class="h-20 sm:h-28 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
                 <div>
-                    <h1 class="font-fantasy text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-wider" style="color: var(--accent-bright)">
-                        АЛЬБОМ КОЛЛЕКЦИОНЕРА
-                    </h1>
+                    <img src="title.png" alt="Альбом коллекционера" class="h-10 sm:h-12 md:h-14 w-auto max-w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
                     <p class="text-sm mt-1.5" style="color: var(--text-muted)">
                         Выпуск: <strong style="color: var(--text-main)">{{ selectedSet === 'ALL' ? 'Все выпуски (' + availableSets.length + ')' : selectedSet }}</strong> 
                         <span class="mx-2">•</span> 
@@ -431,6 +433,11 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                <span v-if="cardsInActiveTrade.has(card.cardId)"
+                                      class="px-1.5 py-0.5 rounded bg-sky-500/25 border border-sky-400/60 text-sky-300 text-[10px] font-bold">
+                                    ⏳ В обмене
+                                </span>
 
                                 <!-- Бейдж "Нет у меня" при осмотре друга -->
                                 <span v-if="viewingFriend && getTotal(card.cardId) > 0 && getOwnTotal(card.cardId) === 0"
@@ -667,10 +674,16 @@
                                 <div class="font-bold text-sm">
                                     Диалог с <span class="text-amber-400">{{ activeChatFriend.username }}</span>
                                 </div>
-                                <button @click="inspectFriendCollection(activeChatFriend)" 
-                                        class="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
-                                    👁️ Открыть его альбом
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button @click="openTradeModal(activeChatFriend)" 
+                                            class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">
+                                        ⚖️ Обмен
+                                    </button>
+                                    <button @click="inspectFriendCollection(activeChatFriend)" 
+                                            class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
+                                        👁️ Альбом
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Лента сообщений -->
@@ -698,7 +711,69 @@
                                                     {{ getCardById(msg.card_id).set }} #{{ getCardById(msg.card_id).number }}
                                                 </div>
                                                 <div class="font-bold text-xs truncate">{{ getCardById(msg.card_id).name }}</div>
+                                                <div v-if="activeChatFriend" class="text-[10px] text-emerald-400 font-semibold mt-0.5">
+                                                    У {{ activeChatFriend.username }} сейчас: {{ getFriendCardStockText(activeChatFriend, msg.card_id) }}
+                                                </div>
                                                 <div class="text-[10px] opacity-75">🔍 Кликните для 3D-осмотра поверх чата</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Карточка двухэтапного IRL-обмена -->
+                                        <div v-if="msg.trade_data" class="p-3 rounded-xl bg-black/50 border border-amber-500/40 space-y-2.5 mt-1">
+                                            <div class="flex items-center justify-between gap-2 border-b border-white/10 pb-1.5">
+                                                <span class="font-bold text-amber-300 text-xs">⚖️ Предложение обмена</span>
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeStatusBadge(msg.trade_data.status).cls">
+                                                    {{ tradeStatusBadge(msg.trade_data.status).label }}
+                                                </span>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                                                <div class="p-2 rounded-lg bg-white/5 space-y-1">
+                                                    <div class="text-stone-400 font-semibold">{{ msg.sender_id === currentUser.id ? 'Вы отдаёте:' : 'Вам предлагают:' }}</div>
+                                                    <div v-for="(it, idx) in (msg.trade_data.offer || [])" :key="'o'+idx"
+                                                         @click="openInspectFromChat(it.cardId)"
+                                                         class="flex items-center gap-1.5 cursor-pointer hover:text-amber-300">
+                                                        <span class="truncate font-semibold">• {{ getCardById(it.cardId)?.name || ('#' + it.cardId) }}</span>
+                                                        <span v-if="it.type === 'foil'" class="text-amber-400 shrink-0">✨</span>
+                                                    </div>
+                                                </div>
+                                                <div class="p-2 rounded-lg bg-white/5 space-y-1">
+                                                    <div class="text-stone-400 font-semibold">{{ msg.sender_id === currentUser.id ? 'Вы просите:' : 'У вас просят:' }}</div>
+                                                    <div v-for="(it, idx) in (msg.trade_data.request || [])" :key="'r'+idx"
+                                                         @click="openInspectFromChat(it.cardId)"
+                                                         class="flex items-center gap-1.5 cursor-pointer hover:text-amber-300">
+                                                        <span class="truncate font-semibold">• {{ getCardById(it.cardId)?.name || ('#' + it.cardId) }}</span>
+                                                        <span v-if="it.type === 'foil'" class="text-amber-400 shrink-0">✨</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div v-if="msg.sender_id !== currentUser.id && msg.trade_data.status === 'pending' && hasLastCopyWarning(msg.trade_data.request)"
+                                                 class="p-2 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-200 text-[10px] font-semibold">
+                                                ⚠️ Внимание: среди запрашиваемых карт есть ваша единственная копия в альбоме!
+                                            </div>
+
+                                            <div v-if="msg.trade_data.status === 'pending'" class="flex flex-wrap gap-1.5 pt-1">
+                                                <template v-if="msg.sender_id !== currentUser.id">
+                                                    <button @click="changeTradeStatus(msg, 'accepted')" class="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]">
+                                                        🤝 Согласиться (В бронь)
+                                                    </button>
+                                                    <button @click="changeTradeStatus(msg, 'rejected')" class="py-1.5 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 font-bold text-[11px]">
+                                                        ❌ Отклонить
+                                                    </button>
+                                                </template>
+                                                <button v-else @click="changeTradeStatus(msg, 'cancelled')" class="py-1.5 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[11px]">
+                                                    Отменить предложение
+                                                </button>
+                                            </div>
+
+                                            <div v-if="msg.trade_data.status === 'accepted'" class="flex flex-wrap gap-1.5 pt-1">
+                                                <button @click="executeCompleteTrade(msg)" class="flex-1 py-1.5 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-[11px]">
+                                                    ✅ Обмен произошёл (Передать карты)
+                                                </button>
+                                                <button @click="changeTradeStatus(msg, 'cancelled')" class="py-1.5 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[11px]">
+                                                    ↩️ Отменить бронь
+                                                </button>
                                             </div>
                                         </div>
 
@@ -732,6 +807,125 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+
+        <!-- МОДАЛЬНОЕ ОКНО КОНСТРУКТОРА ОБМЕНА (z-[75]) -->
+        <div v-if="showTradeModal && tradeTargetFriend" class="fixed inset-0 z-[75] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5" @click="showTradeModal = false">
+            <div class="ui-panel rounded-3xl p-5 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl relative" @click.stop>
+                <button @click="showTradeModal = false" class="ui-input absolute top-4 right-4 w-8 h-8 rounded-full font-bold">×</button>
+                <h3 class="font-fantasy text-xl font-bold mb-1" style="color: var(--accent-bright)">
+                    ⚖️ Предложение обмена с {{ tradeTargetFriend.username }}
+                </h3>
+                <p class="text-xs mb-3" style="color: var(--text-muted)">
+                    Сначала вы договариваетесь (карты уходят в бронь), а списываются они только после реальной встречи по кнопке «Обмен произошёл».
+                </p>
+
+                <!-- Сводка по редкостям -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3 p-3 rounded-2xl bg-black/40 border border-white/10 text-xs">
+                    <div>
+                        <div class="text-stone-400">Просите у {{ tradeTargetFriend.username }} ({{ tradeRequest.length }}):</div>
+                        <div class="font-bold text-amber-300 mt-0.5">{{ summarizeTradeRarity(tradeRequest) || 'Ничего не выбрано' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-stone-400">Отдаёте взамен ({{ tradeOffer.length }}):</div>
+                        <div class="font-bold text-emerald-400 mt-0.5">{{ summarizeTradeRarity(tradeOffer) || 'Ничего не выбрано' }}</div>
+                        <div v-if="hasLastCopyWarning(tradeOffer)" class="text-rose-400 font-bold text-[11px] mt-1">
+                            ⚠️ Внимание: вы отдаёте единственную копию карты в вашем альбоме!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Две колонки выбора карт -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-hidden min-h-0">
+                    <!-- Левая: карты друга -->
+                    <div class="flex flex-col overflow-hidden rounded-2xl bg-black/25 border border-white/10 p-3">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="text-xs font-bold text-amber-300">Карты {{ tradeTargetFriend.username }}</span>
+                            <div class="flex gap-1">
+                                <button @click="tradeFriendFilter = 'ALL'" class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeFriendFilter === 'ALL' ? 'bg-amber-500 text-black' : 'ui-input'">Все</button>
+                                <button @click="tradeFriendFilter = 'DUPS'" class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeFriendFilter === 'DUPS' ? 'bg-amber-500 text-black' : 'ui-input'">Дубли 2+</button>
+                                <button @click="tradeFriendFilter = 'NEED'" class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeFriendFilter === 'NEED' ? 'bg-amber-500 text-black' : 'ui-input'">Нет у меня</button>
+                            </div>
+                        </div>
+                        <input type="text" v-model="tradeFriendSearch" placeholder="Поиск карты друга..." class="ui-input rounded-xl px-3 py-1.5 text-xs mb-2">
+                        <div class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                            <div v-for="c in tradeFriendCards" :key="'tf'+c.cardId"
+                                 class="p-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <img :src="c.imageUrl" class="w-8 h-11 object-cover rounded shrink-0">
+                                    <div class="min-w-0">
+                                        <div class="font-bold truncate">{{ c.name }}</div>
+                                        <div class="text-[10px] text-stone-400">{{ c.rarity }} • {{ getFriendCardStockText(tradeTargetFriend, c.cardId) }}</div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-1 shrink-0">
+                                    <button v-if="(tradeTargetFriend.inventory?.[c.cardId]?.normal || 0) > 0"
+                                            @click="toggleTradeItem(tradeRequest, c.cardId, 'normal')"
+                                            class="px-2 py-1 rounded-lg text-[10px] font-bold border"
+                                            :class="isInTradeList(tradeRequest, c.cardId, 'normal') ? 'bg-amber-500 text-black border-amber-400' : 'ui-input'">
+                                        {{ isInTradeList(tradeRequest, c.cardId, 'normal') ? '✓ Обычн.' : '+ Обычн.' }}
+                                    </button>
+                                    <button v-if="(tradeTargetFriend.inventory?.[c.cardId]?.foil || 0) > 0"
+                                            @click="toggleTradeItem(tradeRequest, c.cardId, 'foil')"
+                                            class="px-2 py-1 rounded-lg text-[10px] font-bold border"
+                                            :class="isInTradeList(tradeRequest, c.cardId, 'foil') ? 'bg-amber-500 text-black border-amber-400' : 'ui-input'">
+                                        {{ isInTradeList(tradeRequest, c.cardId, 'foil') ? '✓ ✨' : '+ ✨' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Правая: мои карты -->
+                    <div class="flex flex-col overflow-hidden rounded-2xl bg-black/25 border border-white/10 p-3">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="text-xs font-bold text-emerald-400">Мои карты (сверху розыск друга 🔔)</span>
+                        </div>
+                        <input type="text" v-model="tradeMySearch" placeholder="Поиск моей карты..." class="ui-input rounded-xl px-3 py-1.5 text-xs mb-2">
+                        <div class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                            <div v-for="c in tradeMyCards" :key="'tm'+c.cardId"
+                                 class="p-2 rounded-xl border flex items-center justify-between gap-2 text-xs"
+                                 :class="(tradeTargetFriend.wishlist || []).includes(c.cardId) ? 'bg-amber-500/15 border-amber-500/40' : 'bg-black/40 border-white/5'">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <img :src="c.imageUrl" class="w-8 h-11 object-cover rounded shrink-0">
+                                    <div class="min-w-0">
+                                        <div class="font-bold truncate">
+                                            <span v-if="(tradeTargetFriend.wishlist || []).includes(c.cardId)">🔔 </span>{{ c.name }}
+                                        </div>
+                                        <div class="text-[10px] text-stone-400">
+                                            {{ c.rarity }} • У меня: {{ inventory[c.cardId]?.normal || 0 }} об. / {{ inventory[c.cardId]?.foil || 0 }} ✨
+                                            <span v-if="getOwnTotal(c.cardId) === 1" class="text-rose-400 font-bold ml-1">(Последняя!)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-1 shrink-0">
+                                    <button v-if="(inventory[c.cardId]?.normal || 0) > 0"
+                                            @click="toggleTradeItem(tradeOffer, c.cardId, 'normal')"
+                                            class="px-2 py-1 rounded-lg text-[10px] font-bold border"
+                                            :class="isInTradeList(tradeOffer, c.cardId, 'normal') ? 'bg-emerald-500 text-black border-emerald-400' : 'ui-input'">
+                                        {{ isInTradeList(tradeOffer, c.cardId, 'normal') ? '✓ Обычн.' : '+ Обычн.' }}
+                                    </button>
+                                    <button v-if="(inventory[c.cardId]?.foil || 0) > 0"
+                                            @click="toggleTradeItem(tradeOffer, c.cardId, 'foil')"
+                                            class="px-2 py-1 rounded-lg text-[10px] font-bold border"
+                                            :class="isInTradeList(tradeOffer, c.cardId, 'foil') ? 'bg-emerald-500 text-black border-emerald-400' : 'ui-input'">
+                                        {{ isInTradeList(tradeOffer, c.cardId, 'foil') ? '✓ ✨' : '+ ✨' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2">
+                    <input type="text" v-model="tradeComment" placeholder="Комментарий к обмену (например: встретимся в пятницу)..." class="ui-input flex-1 rounded-xl px-3 py-2 text-xs">
+                    <button @click="sendTradeProposal" :disabled="tradeOffer.length === 0 && tradeRequest.length === 0"
+                            class="px-5 py-2 rounded-xl text-xs font-extrabold disabled:opacity-40 transition"
+                            style="background: var(--accent); color: #121110">
+                        Отправить предложение в чат ➤
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1000,7 +1194,7 @@
                 const wishlist = ref([]); // Массив cardId в списке розыска (колокольчики)
 
                 // Очередь карт, которые только что появились у пользователя (для авто-уведомления друзей)
-                const pendingNewlyAcquired = new Set();
+                const pendingNewlyAcquired = new Map();
 
                 // Состояние авторизации и облака
                 const currentUser = ref(null);
@@ -1181,17 +1375,19 @@
                 // Авто-уведомление друзьям, если у пользователя появилась карта из их списка розыска
                 const notifyFriendsAboutNewCards = async () => {
                     if (!currentUser.value || pendingNewlyAcquired.size === 0) return;
-                    const acquiredIds = Array.from(pendingNewlyAcquired);
+                    const entries = Array.from(pendingNewlyAcquired.entries());
                     pendingNewlyAcquired.clear();
 
-                    for (const cid of acquiredIds) {
-                        if (getOwnTotal(cid) <= 0) continue; // Если кликнул + и сразу вернул в 0 — не шлем
+                    for (const [cid, reason] of entries) {
+                        if (getOwnTotal(cid) <= 0) continue;
                         const cardObj = getCardById(cid);
                         if (!cardObj) continue;
 
                         for (const fr of friendsList.value) {
                             if (Array.isArray(fr.wishlist) && fr.wishlist.includes(Number(cid))) {
-                                const msgText = `🔔 Авто-радар: У меня появилась карта «${cardObj.name}» (${cardObj.set} #${cardObj.number}), которая стоит у тебя в списке розыска!`;
+                                const msgText = reason === 'dup'
+                                    ? `🔔 Авто-радар: У меня появился дубликат (${getOwnTotal(cid)} шт.) карты «${cardObj.name}» (${cardObj.set} #${cardObj.number}), которую ты ищешь!`
+                                    : `🔔 Авто-радар: У меня появилась карта «${cardObj.name}» (${cardObj.set} #${cardObj.number}), которая стоит у тебя в списке розыска!`;
                                 const { data } = await sb.from('messages').insert({
                                     sender_id: currentUser.value.id,
                                     receiver_id: fr.id,
@@ -1239,7 +1435,11 @@
 
                     // Если карта появилась впервые (было 0, стало > 0)
                     if (prevTotal === 0 && newTotal > 0) {
-                        pendingNewlyAcquired.add(Number(id));
+                        pendingNewlyAcquired.set(Number(id), 'new');
+                    } else if (prevTotal === 1 && newTotal >= 2) {
+                        pendingNewlyAcquired.set(Number(id), 'dup');
+                    }
+                    if (prevTotal === 0 && newTotal > 0) {
                         // Автоматически снимаем свой колокольчик, так как карта уже добыта
                         const wIdx = wishlist.value.indexOf(Number(id));
                         if (wIdx !== -1) wishlist.value.splice(wIdx, 1);
@@ -1255,7 +1455,11 @@
                     const newTotal = getOwnTotal(id);
 
                     if (prevTotal === 0 && newTotal > 0) {
-                        pendingNewlyAcquired.add(Number(id));
+                        pendingNewlyAcquired.set(Number(id), 'new');
+                    } else if (prevTotal === 1 && newTotal >= 2) {
+                        pendingNewlyAcquired.set(Number(id), 'dup');
+                    }
+                    if (prevTotal === 0 && newTotal > 0) {
                         const wIdx = wishlist.value.indexOf(Number(id));
                         if (wIdx !== -1) wishlist.value.splice(wIdx, 1);
                     }
@@ -1629,6 +1833,157 @@
                     return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
                 };
 
+                // ==========================================
+                // ДВУХЭТАПНЫЙ IRL-ОБМЕН
+                // ==========================================
+                const showTradeModal = ref(false);
+                const tradeTargetFriend = ref(null);
+                const tradeOffer = ref([]);
+                const tradeRequest = ref([]);
+                const tradeComment = ref('');
+                const tradeFriendFilter = ref('ALL');
+                const tradeFriendSearch = ref('');
+                const tradeMySearch = ref('');
+
+                const getFriendCardStockText = (friend, cardId) => {
+                    const rec = friend?.inventory?.[cardId];
+                    const n = rec?.normal || 0;
+                    const f = rec?.foil || 0;
+                    if (n === 0 && f === 0) return '0 шт.';
+                    const parts = [];
+                    if (n > 0) parts.push(`${n} обычн.`);
+                    if (f > 0) parts.push(`${f} фойл ✨`);
+                    return parts.join(' + ');
+                };
+
+                const openTradeModal = (friend) => {
+                    if (!friend) return;
+                    tradeTargetFriend.value = friend;
+                    tradeOffer.value = [];
+                    tradeRequest.value = [];
+                    tradeComment.value = '';
+                    tradeFriendFilter.value = 'ALL';
+                    tradeFriendSearch.value = '';
+                    tradeMySearch.value = '';
+                    showTradeModal.value = true;
+                };
+
+                const isInTradeList = (list, cardId, type) => list.some(i => i.cardId === cardId && i.type === type);
+
+                const toggleTradeItem = (list, cardId, type) => {
+                    const idx = list.findIndex(i => i.cardId === cardId && i.type === type);
+                    if (idx === -1) list.push({ cardId, type, qty: 1 });
+                    else list.splice(idx, 1);
+                };
+
+                const tradeFriendCards = computed(() => {
+                    if (!tradeTargetFriend.value) return [];
+                    const fInv = tradeTargetFriend.value.inventory || {};
+                    const q = tradeFriendSearch.value.trim().toLowerCase();
+                    return cards.value.filter(c => {
+                        const tot = (fInv[c.cardId]?.normal || 0) + (fInv[c.cardId]?.foil || 0);
+                        if (tot <= 0) return false;
+                        if (tradeFriendFilter.value === 'DUPS' && tot < 2) return false;
+                        if (tradeFriendFilter.value === 'NEED' && getOwnTotal(c.cardId) > 0) return false;
+                        if (q && !c.name.toLowerCase().includes(q) && !(`#${c.number}`).includes(q)) return false;
+                        return true;
+                    });
+                });
+
+                const tradeMyCards = computed(() => {
+                    const q = tradeMySearch.value.trim().toLowerCase();
+                    const fWish = tradeTargetFriend.value?.wishlist || [];
+                    return cards.value
+                        .filter(c => {
+                            if (getOwnTotal(c.cardId) <= 0) return false;
+                            if (q && !c.name.toLowerCase().includes(q) && !(`#${c.number}`).includes(q)) return false;
+                            return true;
+                        })
+                        .sort((a, b) => (fWish.includes(b.cardId) ? 1 : 0) - (fWish.includes(a.cardId) ? 1 : 0));
+                });
+
+                const summarizeTradeRarity = (list) => {
+                    if (!list || list.length === 0) return '';
+                    const counts = {};
+                    let foils = 0;
+                    list.forEach(it => {
+                        const c = getCardById(it.cardId);
+                        const r = c?.rarity || 'Карта';
+                        counts[r] = (counts[r] || 0) + (it.qty || 1);
+                        if (it.type === 'foil') foils += (it.qty || 1);
+                    });
+                    const text = Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
+                    return foils > 0 ? `${text} (✨${foils} фойл)` : text;
+                };
+
+                const hasLastCopyWarning = (list) => {
+                    return (list || []).some(it => getOwnTotal(it.cardId) === 1);
+                };
+
+                const cardsInActiveTrade = computed(() => {
+                    const s = new Set();
+                    messagesList.value.forEach(m => {
+                        if (m.trade_data?.status === 'accepted') {
+                            (m.trade_data.offer || []).forEach(i => s.add(Number(i.cardId)));
+                            (m.trade_data.request || []).forEach(i => s.add(Number(i.cardId)));
+                        }
+                    });
+                    return s;
+                });
+
+                const tradeStatusBadge = (st) => ({
+                    pending: { label: 'Ожидает ответа', cls: 'bg-amber-500/20 text-amber-300' },
+                    accepted: { label: '⏳ В обмене (Бронь)', cls: 'bg-sky-500/25 text-sky-300' },
+                    completed: { label: '✅ Завершён', cls: 'bg-emerald-500/25 text-emerald-300' },
+                    rejected: { label: '❌ Отклонён', cls: 'bg-rose-500/20 text-rose-300' },
+                    cancelled: { label: 'Отменён', cls: 'bg-white/10 text-stone-400' }
+                }[st] || { label: st, cls: 'bg-white/10 text-stone-300' });
+
+                const sendTradeProposal = async () => {
+                    if (!currentUser.value || !tradeTargetFriend.value) return;
+                    const payload = {
+                        sender_id: currentUser.value.id,
+                        receiver_id: tradeTargetFriend.value.id,
+                        content: tradeComment.value.trim() || 'Предлагаю обмен картами!',
+                        trade_data: {
+                            status: 'pending',
+                            offer: tradeOffer.value,
+                            request: tradeRequest.value
+                        }
+                    };
+                    const { data, error } = await sb.from('messages').insert(payload).select().single();
+                    if (!error && data) {
+                        if (!messagesList.value.some(m => m.id === data.id)) messagesList.value.push(data);
+                        showTradeModal.value = false;
+                        activeChatFriend.value = tradeTargetFriend.value;
+                        showSocialDrawer.value = true;
+                        scrollToBottomChat();
+                    }
+                };
+
+                const changeTradeStatus = async (msg, newStatus) => {
+                    const { data, error } = await sb.rpc('update_trade_status', {
+                        p_message_id: String(msg.id),
+                        p_new_status: newStatus
+                    });
+                    if (!error && data) {
+                        msg.trade_data = data;
+                    }
+                };
+
+                const executeCompleteTrade = async (msg) => {
+                    if (!confirm('Подтвердить, что IRL-обмен состоялся? Карты будут перенесены между вашими альбомами.')) return;
+                    const { data, error } = await sb.rpc('complete_trade', {
+                        p_message_id: String(msg.id)
+                    });
+                    if (!error && data) {
+                        msg.trade_data = data;
+                        await loadUserProfile(currentUser.value);
+                    } else if (error) {
+                        alert('Ошибка завершения обмена: ' + error.message);
+                    }
+                };
+
                 let realtimeChannel = null;
                 const subscribeRealtime = () => {
                     if (realtimeChannel) sb.removeChannel(realtimeChannel);
@@ -1661,6 +2016,17 @@
                             if (viewingFriend.value?.id === updated.id) {
                                 viewingFriend.value = updated;
                             }
+                            if (currentUser.value && updated.id === currentUser.value.id) {
+                                inventory.value = updated.inventory || {};
+                                wishlist.value = Array.isArray(updated.wishlist) ? updated.wishlist : [];
+                                localStorage.setItem('berserk_inventory_gb', JSON.stringify(inventory.value));
+                                localStorage.setItem('berserk_wishlist_gb', JSON.stringify(wishlist.value));
+                            }
+                        })
+                        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+                            const updatedMsg = payload.new;
+                            const idx = messagesList.value.findIndex(m => m.id === updatedMsg.id);
+                            if (idx !== -1) messagesList.value[idx] = updatedMsg;
                         })
                         .subscribe();
                 };
@@ -1989,7 +2355,11 @@
                     showSocialDrawer, openSocialDrawer, friendsList, viewingFriend, friendSearchInput, friendSearchMsg, friendSearchError,
                     addFriendByUsername, countFriendCards, inspectFriendCollection, exitFriendView, tradeNeededCount,
                     activeChatFriend, activeConversation, unreadCount, unreadByFriend, selectChatFriend, openChatWith,
-                    chatInputText, attachedCard, chatScrollBox, askFriendAboutCard, sendChatMessage, openInspectFromChat, formatTime
+                    chatInputText, attachedCard, chatScrollBox, askFriendAboutCard, sendChatMessage, openInspectFromChat, formatTime,
+                    // Trade
+                    showTradeModal, tradeTargetFriend, tradeOffer, tradeRequest, tradeComment, tradeFriendFilter, tradeFriendSearch, tradeMySearch,
+                    getFriendCardStockText, openTradeModal, isInTradeList, toggleTradeItem, tradeFriendCards, tradeMyCards,
+                    summarizeTradeRarity, hasLastCopyWarning, cardsInActiveTrade, tradeStatusBadge, sendTradeProposal, changeTradeStatus, executeCompleteTrade
                 };
             }
         }).mount('#app');
