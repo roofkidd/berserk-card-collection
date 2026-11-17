@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Берсерк: Конструктор Колод</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0f0e0d;
+            --bg-panel: #181614;
+            --bg-card: #201d1a;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-gold: rgba(201, 166, 107, 0.4);
+            --text-main: #ede9e3;
+            --text-muted: #948c80;
+            --accent: #c9a66b;
+            --accent-bright: #e5c384;
+        }
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow-x: hidden;
+        }
+        .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
+        .panel { background: var(--bg-panel); border: 1px solid var(--border-subtle); }
+        .card-box { background: var(--bg-card); border: 1px solid var(--border-subtle); transition: border-color 0.2s ease; }
+        .card-box:hover { border-color: var(--border-gold); }
+        .ui-input { background: #121110; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text-main); }
+        .ui-input:focus { outline: none; border-color: var(--accent); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 166, 107, 0.25); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 166, 107, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+    <div id="app" class="max-w-[1380px] mx-auto px-4 sm:px-6 pt-4">
+
+        <!-- ШАПКА -->
+        <header class="panel rounded-2xl px-5 py-3.5 mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3.5">
+                <a href="index.html" class="ui-input px-3 py-1.5 rounded-xl text-xs font-semibold hover:border-amber-500/50 transition">
+                    ← В Альбом
+                </a>
+                <div class="h-5 w-[1px] bg-white/10 hidden sm:block"></div>
+                <h1 class="font-fantasy text-lg sm:text-xl font-bold tracking-wide" style="color: var(--accent-bright)">
+                    КОНСТРУКТОР КОЛОД
+                </h1>
+            </div>
+
+            <div class="flex items-center gap-2.5">
+                <span class="text-[11px] px-2.5 py-1 rounded-lg bg-black/30 border border-white/5 text-stone-400">
+                    <template v-if="currentUser">
+                        <span v-if="syncState === 'saving'" class="text-amber-300">⏳ Сохранение...</span>
+                        <span v-else class="text-emerald-400">☁️ Облако активно</span>
+                    </template>
+                    <template v-else>💾 Локальный режим</template>
+                </span>
+
+                <button @click="openImportModal"
+                        class="ui-input px-3.5 py-1.5 rounded-xl text-xs font-semibold hover:border-amber-500/60 transition">
+                    📥 Открыть по коду
+                </button>
+            </div>
+        </header>
+
+        <!-- ЛЕНТА КОЛОД -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 mb-4">
+            <button v-for="d in decks" :key="d.id"
+                    @click="activeDeckId = d.id"
+                    class="shrink-0 px-3.5 py-2 rounded-xl border text-left transition flex items-center gap-2.5"
+                    :class="activeDeckId === d.id
+                        ? 'bg-amber-500/15 border-amber-500/70 text-white'
+                        : 'panel text-stone-400 hover:border-white/20'">
+                <div>
+                    <div class="text-xs font-bold flex items-center gap-1.5">
+                        <span class="max-w-[140px] truncate">{{ d.name || 'Без названия' }}</span>
+                        <span v-if="d.mode === 'demo'" class="px-1.5 py-0.2 rounded text-[9px] uppercase bg-sky-500/20 text-sky-300">Демо</span>
+                    </div>
+                    <div class="text-[10px] text-stone-400 mt-0.5 flex items-center gap-1.5">
+                        <span :class="getDeckTotalCards(d) >= 30 && getDeckTotalCards(d) <= 50 ? 'text-emerald-400 font-bold' : ''">
+                            {{ getDeckTotalCards(d) }} карт
+                        </span>
+                        <span>•</span>
+                        <span>{{ getDeckIdentity(d).short }}</span>
+                    </div>
+                </div>
+            </button>
+
+            <button @click="createNewDeck('collection')"
+                    class="shrink-0 px-3.5 py-2.5 rounded-xl text-xs font-bold transition border border-dashed border-amber-500/40 text-amber-300 hover:bg-amber-500/10">
+                + Новая колода
+            </button>
+        </div>
+
+        <!-- ОСНОВНАЯ РАБОЧАЯ ОБЛАСТЬ -->
+        <div v-if="activeDeck" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+            <!-- ЛЕВАЯ КОЛОНКА: КАТАЛОГ КАРТ (7 колонок) -->
+            <div class="lg:col-span-7 panel rounded-2xl p-4 space-y-3.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 p-1 rounded-xl bg-black/40 border border-white/5">
+                        <button @click="activeDeck.mode = 'collection'; saveDecks()"
+                                class="px-3 py-1 rounded-lg text-xs font-semibold transition"
+                                :class="activeDeck.mode === 'collection' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400 hover:text-white'">
+                            📦 Из моей коллекции
+                        </button>
+                        <button @click="activeDeck.mode = 'demo'; saveDecks()"
+                                class="px-3 py-1 rounded-lg text-xs font-semibold transition"
+                                :class="activeDeck.mode === 'demo' ? 'bg-sky-400 text-stone-950 font-bold' : 'text-stone-400 hover:text-white'">
+                            ✨ Демо (вся база)
+                        </button>
+                    </div>
+                    <span class="text-xs text-stone-500">Найдено: {{ filteredCatalog.length }}</span>
+                </div>
+
+                <!-- Фильтры -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <input type="text" v-model="searchQuery" placeholder="Имя или #номер..." class="ui-input rounded-xl px-3 py-1.5 text-xs">
+                    <select v-model="filterElement" class="ui-input rounded-xl px-2.5 py-1.5 text-xs">
+                        <option value="ALL">Все стихии</option>
+                        <option value="Степи">Степи</option>
+                        <option value="Горы">Горы</option>
+                        <option value="Леса">Леса</option>
+                        <option value="Болота">Болота</option>
+                        <option value="Тьма">Тьма</option>
+                        <option value="Нейтральная">Нейтральная</option>
+                    </select>
+                    <select v-model="filterCurrency" class="ui-input rounded-xl px-2.5 py-1.5 text-xs">
+                        <option value="ALL">🪙 + 🥈 Все</option>
+                        <option value="GOLD">🪙 Элита</option>
+                        <option value="SILVER">🥈 Рядовые</option>
+                    </select>
+                    <select v-model="filterSet" class="ui-input rounded-xl px-2.5 py-1.5 text-xs">
+                        <option value="ALL">Все выпуски</option>
+                        <option v-for="s in availableSets" :key="s" :value="s">{{ s }}</option>
+                    </select>
+                </div>
+
+                <div v-if="filteredCatalog.length === 0" class="py-16 text-center text-xs text-stone-500">
+                    Карты не найдены.
+                    <span v-if="activeDeck.mode === 'collection'" class="block mt-1">
+                        Если коллекция ещё пуста, переключитесь в режим «✨ Демо (вся база)».
+                    </span>
+                </div>
+
+                <!-- Сетка карт -->
+                <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[650px] overflow-y-auto pr-1">
+                    <div v-for="card in filteredCatalog.slice(0, 120)" :key="card.cardId"
+                         class="card-box rounded-xl p-2.5 flex flex-col justify-between gap-2">
+                        <div class="flex items-start gap-2.5 cursor-pointer" @click="inspectCard = card">
+                            <img :src="card.imageUrl" :alt="card.name" loading="lazy" class="w-12 h-16 object-cover rounded-lg shrink-0 bg-black/40">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-1">
+                                    <span class="text-[10px] text-stone-400 font-bold">#{{ card.number }}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold"
+                                          :class="card.isElite ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-400/15 text-slate-200'">
+                                        {{ card.cost }} {{ card.isElite ? '🪙' : '🥈' }}
+                                    </span>
+                                </div>
+                                <div class="text-xs font-bold text-white truncate mt-0.5" :title="card.name">{{ card.name }}</div>
+                                <div class="text-[10px] mt-0.5" :class="getElementColor(card.element).text">{{ card.element }}</div>
+                                <div class="text-[10px] text-stone-500 mt-0.5">
+                                    В альбоме: <strong :class="getOwnCount(card.cardId) > 0 ? 'text-emerald-400' : 'text-stone-500'">{{ getOwnCount(card.cardId) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button @click="addCardToDeck(card)"
+                                :disabled="!canAddCard(card).ok"
+                                class="w-full py-1.5 px-2 rounded-lg text-[11px] font-bold transition"
+                                :class="canAddCard(card).ok
+                                    ? 'bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/30'
+                                    : 'bg-white/5 text-stone-500 cursor-not-allowed'">
+                            {{ canAddCard(card).label }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ПРАВАЯ КОЛОНКА: АКТИВНАЯ КОЛОДА И СТАТИСТИКА (5 колонок) -->
+            <div class="lg:col-span-5 panel rounded-2xl p-4 space-y-4">
+
+                <!-- Название, принадлежность и кнопки -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center gap-2">
+                        <input type="text" v-model="activeDeck.name" @input="saveDecks"
+                               placeholder="Название колоды..."
+                               class="ui-input flex-1 rounded-xl px-3 py-2 text-sm font-bold">
+                        <button @click="copyDeckCode(activeDeck)"
+                                class="px-3 py-2 rounded-xl text-xs font-bold transition shrink-0"
+                                style="background: var(--accent); color: #121110"
+                                title="Скопировать код колоды для передачи другу">
+                            📋 Код
+                        </button>
+                        <button @click="deleteActiveDeck"
+                                class="ui-input px-2.5 py-2 rounded-xl text-xs text-rose-400 hover:border-rose-500/50 transition shrink-0"
+                                title="Удалить колоду">
+                            🗑️
+                        </button>
+                    </div>
+
+                    <!-- Принадлежность колоды (Стихии) -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-stone-400">Принадлежность:</span>
+                            <span class="font-bold text-stone-200">{{ getDeckIdentity(activeDeck).label }}</span>
+                            <span v-for="el in getDeckIdentity(activeDeck).elements" :key="el"
+                                  class="px-2 py-0.5 rounded-md text-[10px] font-bold border"
+                                  :class="getElementColor(el).badge">
+                                {{ el }}
+                            </span>
+                        </div>
+                        <span class="text-xs font-extrabold px-2 py-0.5 rounded-lg"
+                              :class="getDeckTotalCards(activeDeck) >= 30 && getDeckTotalCards(activeDeck) <= 50
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : (getDeckTotalCards(activeDeck) > 50 ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/15 text-amber-300')">
+                            {{ getDeckTotalCards(activeDeck) }} / 30–50
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Компактная аналитика: Баланс Золото/Серебро + Кривая стоимости -->
+                <div class="p-3 rounded-xl bg-black/35 border border-white/5 space-y-3">
+                    <!-- Золото vs Серебро -->
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-1">
+                            <span class="text-amber-300 font-bold">🪙 Элита: {{ getDeckGoldSilver(activeDeck).gold }} ({{ getDeckGoldSilver(activeDeck).goldPct }}%)</span>
+                            <span class="text-slate-300 font-bold">🥈 Рядовые: {{ getDeckGoldSilver(activeDeck).silver }} ({{ getDeckGoldSilver(activeDeck).silverPct }}%)</span>
+                        </div>
+                        <div class="w-full h-2 rounded-full overflow-hidden flex bg-white/10">
+                            <div class="h-full bg-amber-400 transition-all duration-300" :style="{ width: getDeckGoldSilver(activeDeck).goldPct + '%' }"></div>
+                            <div class="h-full bg-slate-400 transition-all duration-300" :style="{ width: getDeckGoldSilver(activeDeck).silverPct + '%' }"></div>
+                        </div>
+                    </div>
+
+                    <!-- Кривая стоимости -->
+                    <div>
+                        <div class="text-[10px] text-stone-400 uppercase tracking-wider mb-1.5">Кривая стоимости</div>
+                        <div class="grid grid-cols-5 gap-2 items-end h-14">
+                            <div v-for="bucket in getDeckCostCurve(activeDeck)" :key="bucket.label" class="flex flex-col items-center h-full justify-end">
+                                <span class="text-[10px] font-bold text-stone-300 mb-0.5">{{ bucket.count || '' }}</span>
+                                <div class="w-full rounded-t bg-amber-500/50 transition-all duration-300 min-h-[2px]"
+                                     :style="{ height: bucket.heightPct + '%' }"></div>
+                                <span class="text-[10px] text-stone-500 mt-1">{{ bucket.label }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Состав колоды -->
+                <div v-if="activeDeck.cards.length === 0" class="py-12 text-center text-xs text-stone-500 border border-dashed border-white/10 rounded-xl">
+                    Колода пуста. Добавляйте карты слева — для легальной игры нужно от 30 до 50 карт.
+                </div>
+
+                <div v-else class="space-y-3 max-h-[430px] overflow-y-auto pr-1">
+                    <div v-for="group in deckCardsGrouped" :key="group.title" v-show="group.items.length > 0" class="space-y-1.5">
+                        <div class="text-[11px] font-bold uppercase tracking-wider px-1" :class="group.color">
+                            {{ group.title }} ({{ group.total }})
+                        </div>
+                        <div v-for="item in group.items" :key="item.card.cardId"
+                             class="card-box rounded-xl p-2 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2.5 min-w-0 cursor-pointer" @click="inspectCard = item.card">
+                                <img :src="item.card.imageUrl" class="w-8 h-11 object-cover rounded shrink-0">
+                                <div class="min-w-0">
+                                    <div class="text-xs font-bold text-white truncate">{{ item.card.name }}</div>
+                                    <div class="text-[10px] text-stone-400 flex items-center gap-1.5">
+                                        <span>{{ item.card.cost }} {{ item.card.isElite ? '🪙' : '🥈' }}</span>
+                                        <span>•</span>
+                                        <span :class="getElementColor(item.card.element).text">{{ item.card.element }}</span>
+                                        <span v-if="getOwnCount(item.card.cardId) < item.qty" class="text-rose-400 font-bold">
+                                            (Нет {{ item.qty - getOwnCount(item.card.cardId) }} шт.)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button @click="changeCardQty(item.card.cardId, -1)" class="ui-input w-6 h-6 rounded-lg text-xs font-bold hover:border-rose-400">−</button>
+                                <span class="text-xs font-extrabold w-5 text-center">{{ item.qty }}</span>
+                                <button @click="addCardToDeck(item.card)" :disabled="!canAddCard(item.card).ok" class="ui-input w-6 h-6 rounded-lg text-xs font-bold disabled:opacity-30">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- МОДАЛКА ИМПОРТА / ПРОСМОТРА ЧУЖОЙ КОЛОДЫ ПО КОДУ -->
+        <div v-if="showImportModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" @click="showImportModal = false">
+            <div class="panel rounded-2xl p-6 max-w-lg w-full space-y-4 relative shadow-2xl" @click.stop>
+                <button @click="showImportModal = false" class="ui-input absolute top-4 right-4 w-8 h-8 rounded-full font-bold">×</button>
+                <div>
+                    <h3 class="font-fantasy text-lg font-bold text-amber-300">📥 Открыть колоду по коду</h3>
+                    <p class="text-xs text-stone-400 mt-0.5">Вставьте код (BSK1:...), которым поделился друг, чтобы посмотреть состав и сравнить со своим альбомом.</p>
+                </div>
+
+                <textarea v-model="importCodeInput" @input="parseImportCode" rows="3"
+                          placeholder="BSK1:eyJuIjoi..."
+                          class="ui-input w-full rounded-xl p-3 text-xs font-mono"></textarea>
+
+                <p v-if="importError" class="text-xs text-rose-400 font-semibold">{{ importError }}</p>
+
+                <div v-if="importPreview" class="p-3.5 rounded-xl bg-black/40 border border-amber-500/30 space-y-2 text-xs">
+                    <div class="flex items-center justify-between">
+                        <strong class="text-sm text-white">{{ importPreview.name }}</strong>
+                        <span class="text-amber-300 font-bold">{{ getDeckTotalCards(importPreview) }} карт</span>
+                    </div>
+                    <div class="text-stone-400">
+                        Принадлежность: <strong class="text-stone-200">{{ getDeckIdentity(importPreview).label }}</strong>
+                    </div>
+                    <div class="text-[11px]" :class="getMissingCountForPreview(importPreview) === 0 ? 'text-emerald-400' : 'text-amber-300'">
+                        <template v-if="getMissingCountForPreview(importPreview) === 0">
+                            ✅ Все карты из этой колоды уже есть в вашем альбоме!
+                        </template>
+                        <template v-else>
+                            ⚠️ В вашем альбоме не хватает карт из этой сборки: <strong>{{ getMissingCountForPreview(importPreview) }} шт.</strong>
+                        </template>
+                    </div>
+                    <button @click="confirmImportDeck"
+                            class="w-full mt-2 py-2.5 rounded-xl text-xs font-extrabold transition"
+                            style="background: var(--accent); color: #121110">
+                        Открыть и сохранить в мои колоды
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА БЫСТРОГО ОСМОТРА КАРТЫ -->
+        <div v-if="inspectCard" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" @click="inspectCard = null">
+            <div class="panel rounded-2xl p-5 max-w-sm w-full flex flex-col items-center relative" @click.stop>
+                <button @click="inspectCard = null" class="ui-input absolute top-3 right-3 w-8 h-8 rounded-full font-bold">×</button>
+                <div class="text-xs text-amber-300 font-bold mb-1">{{ inspectCard.set }} #{{ inspectCard.number }}</div>
+                <h4 class="font-bold text-base mb-3 text-center">{{ inspectCard.name }}</h4>
+                <img :src="inspectCard.imageUrl" :alt="inspectCard.name" class="w-64 rounded-xl shadow-2xl mb-3">
+                <div class="text-xs text-stone-400 text-center">
+                    {{ inspectCard.element }} • {{ inspectCard.rarity }} • {{ inspectCard.cost }} {{ inspectCard.isElite ? '🪙 Золота' : '🥈 Серебра' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- ВСПЛЫВАЮЩЕЕ УВЕДОМЛЕНИЕ -->
+        <div v-if="toastMsg" class="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-2xl">
+            {{ toastMsg }}
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        const SUPABASE_URL = 'https://odmwzumulpxjcrzhjiig.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_SffKX4DXsjrTYD-CCv-TSQ_i235kUG9';
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        createApp({
+            setup() {
+                const cards = ref([]);
+                const inventory = ref({});
+                const currentUser = ref(null);
+                const syncState = ref('saved');
+                let syncTimer = null;
+
+                const decks = ref([]);
+                const activeDeckId = ref(null);
+                const inspectCard = ref(null);
+                const toastMsg = ref('');
+
+                // Фильтры каталога
+                const searchQuery = ref('');
+                const filterElement = ref('ALL');
+                const filterCurrency = ref('ALL');
+                const filterSet = ref('ALL');
+
+                // Импорт
+                const showImportModal = ref(false);
+                const importCodeInput = ref('');
+                const importPreview = ref(null);
+                const importError = ref('');
+
+                const showToast = (msg) => {
+                    toastMsg.value = msg;
+                    setTimeout(() => { toastMsg.value = ''; }, 2600);
+                };
+
+                const activeDeck = computed(() => decks.value.find(d => d.id === activeDeckId.value) || null);
+                const getCardById = (cid) => cards.value.find(c => c.cardId === Number(cid));
+                const getOwnCount = (cid) => (inventory.value[cid]?.normal || 0) + (inventory.value[cid]?.foil || 0);
+
+                const availableSets = computed(() => {
+                    const s = new Set();
+                    cards.value.forEach(c => { if (c.set) s.add(c.set); });
+                    return Array.from(s);
+                });
+
+                const getElementColor = (el) => ({
+                    'Степи': { text: 'text-amber-400', badge: 'bg-amber-500/15 border-amber-500/40 text-amber-300' },
+                    'Горы': { text: 'text-sky-300', badge: 'bg-sky-500/15 border-sky-500/40 text-sky-300' },
+                    'Леса': { text: 'text-emerald-400', badge: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' },
+                    'Болота': { text: 'text-lime-400', badge: 'bg-lime-500/15 border-lime-500/40 text-lime-300' },
+                    'Тьма': { text: 'text-purple-400', badge: 'bg-purple-500/15 border-purple-500/40 text-purple-300' },
+                    'Нейтральная': { text: 'text-stone-400', badge: 'bg-white/10 border-white/20 text-stone-300' }
+                }[el] || { text: 'text-stone-400', badge: 'bg-white/10 border-white/20 text-stone-300' });
+
+                const saveDecks = () => {
+                    localStorage.setItem('berserk_decks_gb', JSON.stringify(decks.value));
+                    if (currentUser.value) {
+                        syncState.value = 'saving';
+                        clearTimeout(syncTimer);
+                        syncTimer = setTimeout(async () => {
+                            const { error } = await sb
+                                .from('profiles')
+                                .update({ decks: decks.value, updated_at: new Date().toISOString() })
+                                .eq('id', currentUser.value.id);
+                            if (!error) syncState.value = 'saved';
+                        }, 800);
+                    }
+                };
+
+                const createNewDeck = (mode = 'collection') => {
+                    const newDeck = {
+                        id: 'deck_' + Date.now(),
+                        name: `Колода #${decks.value.length + 1}`,
+                        mode,
+                        cards: []
+                    };
+                    decks.value.push(newDeck);
+                    activeDeckId.value = newDeck.id;
+                    saveDecks();
+                };
+
+                const deleteActiveDeck = () => {
+                    if (!activeDeck.value) return;
+                    if (!confirm(`Удалить колоду «${activeDeck.value.name}»?`)) return;
+                    const idx = decks.value.findIndex(d => d.id === activeDeck.value.id);
+                    if (idx !== -1) decks.value.splice(idx, 1);
+                    if (decks.value.length === 0) createNewDeck('collection');
+                    else activeDeckId.value = decks.value[0].id;
+                    saveDecks();
+                };
+
+                const getDeckQty = (cid) => {
+                    if (!activeDeck.value) return 0;
+                    const found = activeDeck.value.cards.find(i => i.cardId === cid);
+                    return found ? found.qty : 0;
+                };
+
+                const canAddCard = (card) => {
+                    if (!activeDeck.value) return { ok: false, label: '—' };
+                    const cur = getDeckQty(card.cardId);
+                    if (cur >= 3) return { ok: false, label: 'Макс. 3 шт.' };
+                    if (activeDeck.value.mode === 'collection') {
+                        const owned = getOwnCount(card.cardId);
+                        if (owned <= 0) return { ok: false, label: 'Нет в альбоме' };
+                        if (cur >= owned) return { ok: false, label: `В альбоме только ${owned}` };
+                    }
+                    return { ok: true, label: cur > 0 ? `+ Ещё (${cur}/3)` : '+ В колоду' };
+                };
+
+                const addCardToDeck = (card) => {
+                    if (!canAddCard(card).ok) return;
+                    const existing = activeDeck.value.cards.find(i => i.cardId === card.cardId);
+                    if (existing) existing.qty += 1;
+                    else activeDeck.value.cards.push({ cardId: card.cardId, qty: 1 });
+                    saveDecks();
+                };
+
+                const changeCardQty = (cid, delta) => {
+                    if (!activeDeck.value) return;
+                    const idx = activeDeck.value.cards.findIndex(i => i.cardId === cid);
+                    if (idx === -1) return;
+                    activeDeck.value.cards[idx].qty += delta;
+                    if (activeDeck.value.cards[idx].qty <= 0) activeDeck.value.cards.splice(idx, 1);
+                    saveDecks();
+                };
+
+                const filteredCatalog = computed(() => {
+                    const q = searchQuery.value.trim().toLowerCase();
+                    const isColMode = activeDeck.value?.mode === 'collection';
+                    return cards.value.filter(c => {
+                        if (isColMode && getOwnCount(c.cardId) <= 0) return false;
+                        if (filterElement.value !== 'ALL' && c.element !== filterElement.value) return false;
+                        if (filterCurrency.value === 'GOLD' && !c.isElite) return false;
+                        if (filterCurrency.value === 'SILVER' && c.isElite) return false;
+                        if (filterSet.value !== 'ALL' && c.set !== filterSet.value) return false;
+                        if (q && !c.name.toLowerCase().includes(q) && !(`#${c.number}`).includes(q)) return false;
+                        return true;
+                    });
+                });
+
+                // АНАЛИТИКА КОЛОДЫ
+                const getDeckTotalCards = (deck) => (deck?.cards || []).reduce((s, i) => s + i.qty, 0);
+
+                const getDeckIdentity = (deck) => {
+                    const counts = {};
+                    let hasNeutral = false;
+                    (deck?.cards || []).forEach(it => {
+                        const c = getCardById(it.cardId);
+                        if (!c) return;
+                        if (c.element === 'Нейтральная') hasNeutral = true;
+                        else counts[c.element] = (counts[c.element] || 0) + it.qty;
+                    });
+                    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+                    if (sorted.length === 0) {
+                        return hasNeutral
+                            ? { label: 'Нейтральная', short: 'Нейтралы', elements: ['Нейтральная'] }
+                            : { label: 'Не определена', short: 'Пусто', elements: [] };
+                    }
+                    if (sorted.length === 1) return { label: `Моно`, short: sorted[0], elements: sorted };
+                    return { label: `Мульти (${sorted.length})`, short: sorted.slice(0, 2).join(' / '), elements: sorted };
+                };
+
+                const getDeckGoldSilver = (deck) => {
+                    let gold = 0, silver = 0;
+                    (deck?.cards || []).forEach(it => {
+                        const c = getCardById(it.cardId);
+                        if (!c) return;
+                        if (c.isElite) gold += it.qty;
+                        else silver += it.qty;
+                    });
+                    const total = gold + silver;
+                    return {
+                        gold, silver,
+                        goldPct: total ? Math.round((gold / total) * 100) : 0,
+                        silverPct: total ? Math.round((silver / total) * 100) : 0
+                    };
+                };
+
+                const getDeckCostCurve = (deck) => {
+                    const buckets = [
+                        { label: '≤3', count: 0 },
+                        { label: '4', count: 0 },
+                        { label: '5', count: 0 },
+                        { label: '6', count: 0 },
+                        { label: '7+', count: 0 }
+                    ];
+                    (deck?.cards || []).forEach(it => {
+                        const c = getCardById(it.cardId);
+                        if (!c) return;
+                        const cost = c.cost || 0;
+                        if (cost <= 3) buckets[0].count += it.qty;
+                        else if (cost === 4) buckets[1].count += it.qty;
+                        else if (cost === 5) buckets[2].count += it.qty;
+                        else if (cost === 6) buckets[3].count += it.qty;
+                        else buckets[4].count += it.qty;
+                    });
+                    const max = Math.max(1, ...buckets.map(b => b.count));
+                    return buckets.map(b => ({ ...b, heightPct: Math.round((b.count / max) * 100) }));
+                };
+
+                const deckCardsGrouped = computed(() => {
+                    if (!activeDeck.value) return [];
+                    const gold = [], silver = [];
+                    activeDeck.value.cards.forEach(it => {
+                        const c = getCardById(it.cardId);
+                        if (!c) return;
+                        (c.isElite ? gold : silver).push({ card: c, qty: it.qty });
+                    });
+                    gold.sort((a, b) => (a.card.cost - b.card.cost) || a.card.name.localeCompare(b.card.name, 'ru'));
+                    silver.sort((a, b) => (a.card.cost - b.card.cost) || a.card.name.localeCompare(b.card.name, 'ru'));
+                    return [
+                        { title: '🪙 Элита (Золото)', color: 'text-amber-300', items: gold, total: gold.reduce((s, i) => s + i.qty, 0) },
+                        { title: '🥈 Рядовые (Серебро)', color: 'text-slate-300', items: silver, total: silver.reduce((s, i) => s + i.qty, 0) }
+                    ];
+                });
+
+                // ЭКСПОРТ И ИМПОРТ КОДА КОЛОДЫ
+                const encodeDeckCode = (deck) => {
+                    const payload = { n: deck.name, m: deck.mode, c: deck.cards.map(i => [i.cardId, i.qty]) };
+                    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+                    let bin = '';
+                    bytes.forEach(b => bin += String.fromCharCode(b));
+                    return 'BSK1:' + btoa(bin);
+                };
+
+                const copyDeckCode = async (deck) => {
+                    const code = encodeDeckCode(deck);
+                    try {
+                        await navigator.clipboard.writeText(code);
+                        showToast('✅ Код колоды скопирован в буфер!');
+                    } catch {
+                        prompt('Скопируйте код колоды:', code);
+                    }
+                };
+
+                const openImportModal = () => {
+                    importCodeInput.value = '';
+                    importPreview.value = null;
+                    importError.value = '';
+                    showImportModal.value = true;
+                };
+
+                const parseImportCode = () => {
+                    importError.value = '';
+                    importPreview.value = null;
+                    const raw = importCodeInput.value.trim();
+                    if (!raw) return;
+                    try {
+                        const clean = raw.replace(/^BSK1:/i, '');
+                        const bin = atob(clean);
+                        const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+                        const data = JSON.parse(new TextDecoder().decode(bytes));
+                        if (!Array.isArray(data.c)) throw new Error();
+                        importPreview.value = {
+                            id: 'deck_' + Date.now(),
+                            name: data.n || 'Импортированная колода',
+                            mode: 'demo',
+                            cards: data.c.map(([cardId, qty]) => ({ cardId: Number(cardId), qty: Number(qty) || 1 }))
+                        };
+                    } catch {
+                        importError.value = 'Неверный формат кода колоды. Проверьте, что скопировали строку целиком.';
+                    }
+                };
+
+                const getMissingCountForPreview = (deck) => {
+                    return (deck?.cards || []).reduce((miss, it) => {
+                        return miss + Math.max(0, it.qty - getOwnCount(it.cardId));
+                    }, 0);
+                };
+
+                const confirmImportDeck = () => {
+                    if (!importPreview.value) return;
+                    decks.value.push(importPreview.value);
+                    activeDeckId.value = importPreview.value.id;
+                    saveDecks();
+                    showImportModal.value = false;
+                    showToast('✅ Колода добавлена!');
+                };
+
+                onMounted(async () => {
+                    try {
+                        const res = await fetch(`cards.json?v=${Date.now()}`, { cache: 'no-store' });
+                        const data = await res.json();
+                        cards.value = data.map(c => {
+                            if (c.cost > 30) c.cost = 4;
+                            return c;
+                        });
+                    } catch (e) { console.error('Ошибка чтения cards.json:', e); }
+
+                    const localInv = localStorage.getItem('berserk_inventory_gb');
+                    if (localInv) try { inventory.value = JSON.parse(localInv); } catch {}
+
+                    const localDecks = localStorage.getItem('berserk_decks_gb');
+                    if (localDecks) try { decks.value = JSON.parse(localDecks); } catch {}
+
+                    const { data: { session } } = await sb.auth.getSession();
+                    if (session?.user) {
+                        currentUser.value = session.user;
+                        const { data: prof } = await sb.from('profiles').select('inventory, decks').eq('id', session.user.id).single();
+                        if (prof) {
+                            if (prof.inventory) inventory.value = prof.inventory;
+                            if (Array.isArray(prof.decks) && prof.decks.length > 0) {
+                                decks.value = prof.decks;
+                                localStorage.setItem('berserk_decks_gb', JSON.stringify(decks.value));
+                            }
+                        }
+                    }
+
+                    if (decks.value.length === 0) createNewDeck('collection');
+                    else activeDeckId.value = decks.value[0].id;
+                });
+
+                return {
+                    cards, inventory, currentUser, syncState, decks, activeDeckId, activeDeck, inspectCard, toastMsg,
+                    searchQuery, filterElement, filterCurrency, filterSet, availableSets, filteredCatalog,
+                    showImportModal, importCodeInput, importPreview, importError,
+                    getElementColor, saveDecks, createNewDeck, deleteActiveDeck, getOwnCount, getDeckQty,
+                    canAddCard, addCardToDeck, changeCardQty, getDeckTotalCards, getDeckIdentity,
+                    getDeckGoldSilver, getDeckCostCurve, deckCardsGrouped,
+                    copyDeckCode, openImportModal, parseImportCode, getMissingCountForPreview, confirmImportDeck
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
