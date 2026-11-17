@@ -210,8 +210,9 @@
         <!-- Шапка -->
         <header class="ui-panel rounded-2xl p-5 sm:p-6 mb-5 shadow-xl flex flex-col lg:flex-row justify-between items-center gap-6">
             <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
-                <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк" 
-                     class="h-20 sm:h-28 object-contain drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
+                <img src="https://berserk.ru/assets/images/logo.png" alt="Берсерк"
+                     @click="goHome" title="На главную (сбросить фильтры и вернуться в свой альбом)"
+                     class="h-20 sm:h-28 object-contain cursor-pointer drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform duration-300">
                 <div>
                     <img src="title.png" alt="Альбом коллекционера" class="h-10 sm:h-12 md:h-14 w-auto max-w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
                     <p class="text-sm mt-1.5" style="color: var(--text-muted)">
@@ -674,16 +675,10 @@
                                 <div class="font-bold text-sm">
                                     Диалог с <span class="text-amber-400">{{ activeChatFriend.username }}</span>
                                 </div>
-                                <div class="flex items-center gap-1.5">
-                                    <button @click="openTradeModal(activeChatFriend)" 
-                                            class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">
-                                        ⚖️ Обмен
-                                    </button>
-                                    <button @click="inspectFriendCollection(activeChatFriend)" 
-                                            class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
-                                        👁️ Альбом
-                                    </button>
-                                </div>
+                                <button @click="openTradeModal(activeChatFriend)" 
+                                        class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition">
+                                    ⚖️ Предложить обмен
+                                </button>
                             </div>
 
                             <!-- Лента сообщений -->
@@ -880,7 +875,11 @@
                     <!-- Правая: мои карты -->
                     <div class="flex flex-col overflow-hidden rounded-2xl bg-black/25 border border-white/10 p-3">
                         <div class="flex items-center justify-between gap-2 mb-2">
-                            <span class="text-xs font-bold text-emerald-400">Мои карты (сверху розыск друга 🔔)</span>
+                            <span class="text-xs font-bold text-emerald-400">Мои карты (🔔 сверху)</span>
+                            <div class="flex gap-1">
+                                <button @click="tradeMyFilter = 'ALL'" class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeMyFilter === 'ALL' ? 'bg-emerald-500 text-black' : 'ui-input'">Все</button>
+                                <button @click="tradeMyFilter = 'NEED'" class="px-2 py-0.5 rounded text-[10px] font-bold" :class="tradeMyFilter === 'NEED' ? 'bg-emerald-500 text-black' : 'ui-input'">Нет у друга</button>
+                            </div>
                         </div>
                         <input type="text" v-model="tradeMySearch" placeholder="Поиск моей карты..." class="ui-input rounded-xl px-3 py-1.5 text-xs mb-2">
                         <div class="flex-1 overflow-y-auto space-y-1.5 pr-1">
@@ -1844,6 +1843,17 @@
                 const tradeFriendFilter = ref('ALL');
                 const tradeFriendSearch = ref('');
                 const tradeMySearch = ref('');
+                const tradeMyFilter = ref('ALL');
+
+                const goHome = () => {
+                    viewingFriend.value = null;
+                    selectedSet.value = 'ALL';
+                    localStorage.setItem('berserk_selected_set', 'ALL');
+                    resetFilters();
+                    showSocialDrawer.value = false;
+                    activeCard.value = null;
+                    showTradeModal.value = false;
+                };
 
                 const getFriendCardStockText = (friend, cardId) => {
                     const rec = friend?.inventory?.[cardId];
@@ -1865,6 +1875,7 @@
                     tradeFriendFilter.value = 'ALL';
                     tradeFriendSearch.value = '';
                     tradeMySearch.value = '';
+                    tradeMyFilter.value = 'ALL';
                     showTradeModal.value = true;
                 };
 
@@ -1893,9 +1904,14 @@
                 const tradeMyCards = computed(() => {
                     const q = tradeMySearch.value.trim().toLowerCase();
                     const fWish = tradeTargetFriend.value?.wishlist || [];
+                    const fInv = tradeTargetFriend.value?.inventory || {};
                     return cards.value
                         .filter(c => {
                             if (getOwnTotal(c.cardId) <= 0) return false;
+                            if (tradeMyFilter.value === 'NEED') {
+                                const fTot = (fInv[c.cardId]?.normal || 0) + (fInv[c.cardId]?.foil || 0);
+                                if (fTot > 0) return false;
+                            }
                             if (q && !c.name.toLowerCase().includes(q) && !(`#${c.number}`).includes(q)) return false;
                             return true;
                         })
@@ -2359,7 +2375,8 @@
                     // Trade
                     showTradeModal, tradeTargetFriend, tradeOffer, tradeRequest, tradeComment, tradeFriendFilter, tradeFriendSearch, tradeMySearch,
                     getFriendCardStockText, openTradeModal, isInTradeList, toggleTradeItem, tradeFriendCards, tradeMyCards,
-                    summarizeTradeRarity, hasLastCopyWarning, cardsInActiveTrade, tradeStatusBadge, sendTradeProposal, changeTradeStatus, executeCompleteTrade
+                    summarizeTradeRarity, hasLastCopyWarning, cardsInActiveTrade, tradeStatusBadge, sendTradeProposal, changeTradeStatus, executeCompleteTrade,
+                    goHome, tradeMyFilter
                 };
             }
         }).mount('#app');
